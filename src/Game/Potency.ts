@@ -164,21 +164,22 @@ export class Potency {
 	#calculatePotencyModifier(damageFactor: number, critBonus: number, dhBonus: number) {
 		const critStat = this.config.criticalHit;
 		const dhStat = this.config.directHit;
+		const det = this.config.determination;
 
-		const base = this.#calculateDamage(critStat, dhStat, 1, 0, 0);
-		const buffed = this.#calculateDamage(critStat, dhStat, damageFactor, critBonus, dhBonus);
+		const base = this.#calculateDamage(critStat, dhStat, det, 1, 0, 0);
+		const buffed = this.#calculateDamage(critStat, dhStat, det, damageFactor, critBonus, dhBonus);
 
 		return buffed / base;
 	}
 
 	#calculateAutoCDHModifier(critBonus: number, dhBonus: number) {
-		const base = this.#calculateDamage(controller.gameConfig.criticalHit, controller.gameConfig.directHit, 1, critBonus, dhBonus);
-		const buffed = this.#calculateDamage(controller.gameConfig.criticalHit, controller.gameConfig.directHit, 1, 1+critBonus, 1+dhBonus);
+		const base = this.#calculateDamage(controller.gameConfig.criticalHit, controller.gameConfig.directHit, controller.gameConfig.determination, 1, critBonus, dhBonus);
+		const buffed = this.#calculateDamage(controller.gameConfig.criticalHit, controller.gameConfig.directHit, controller.gameConfig.determination, 1, 1+critBonus, 1+dhBonus);
 
 		return buffed / base;
 	}
 
-	#calculateDamage(crit: number, dh: number, damageFactor: number, critBonus: number, dhBonus: number) {
+	#calculateDamage(crit: number, dh: number, det: number, damageFactor: number, critBonus: number, dhBonus: number) {
 		let modifier = damageFactor;
 
 		const critRate = (critBonus >= 1) ? critBonus : this.#criticalHitRate(crit) + critBonus;
@@ -191,7 +192,10 @@ export class Potency {
 		const clampedCritRate = critRate > 1 ? 1 : critRate;
 		const clampedDHRate   = dhRate   > 1 ? 1 : dhRate;
 
-		if (autoCDH) modifier *= (1 + this.#autoMultiDH(dh));
+		if (autoCDH) 
+			modifier *= (1 + this.#autoMultiDet(det) + this.#autoMultiDH(dh));
+		else
+			modifier *= (1 + this.#autoMultiDet(det));
 
 		const critDamage = modifier * critMod * critDamageMult;
 		const dhDamage = modifier * 1.25 * dhMod;
@@ -216,5 +220,9 @@ export class Potency {
 
 	#autoMultiDH(dh: number) {
 		return Math.floor(140 * (dh-420) / 2780) * 0.001;
+	}
+
+	#autoMultiDet(det: number) {
+		return Math.floor(140 * (det-440) / 2780) * 0.001;
 	}
 }
