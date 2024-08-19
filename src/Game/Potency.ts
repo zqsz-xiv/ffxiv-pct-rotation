@@ -188,15 +188,15 @@ export class Potency {
 
 		const autoCDH = critRate >= 1 && dhRate >= 1;
 		const critMod = critRate > 1 ? 1 + ((critRate - 1) * critDamageMult) : 1;
-		const dhMod = dhRate > 1 ? 1 + ((dhRate - 1) * 1.25) : 1;
+		//const dhMod = dhRate > 1 ? 1 + ((dhRate - 1) * 1.25) : 1;
 		const clampedCritRate = critRate > 1 ? 1 : critRate;
 		const clampedDHRate   = dhRate   > 1 ? 1 : dhRate;
 
 		if (autoCDH) modifier *= (1 + this.#autoMultiDH(dh));
 
 		const critDamage = modifier * critMod * critDamageMult;
-		const dhDamage = modifier * 1.25 * dhMod;
-		const critDHDamage = critDamage * 1.25 * dhMod;
+		const dhDamage = modifier * 1.25;
+		const critDHDamage = critDamage * 1.25;
 		const critDHRate = clampedCritRate * clampedDHRate;
 		const normalRate = 1 - clampedCritRate - clampedDHRate + critDHRate;
 		
