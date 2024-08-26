@@ -499,11 +499,9 @@ export class GameState {
 		let capturedCastTime = this.captureSpellCastTimeAFUI(
 			skillInfo.aspect,
 			this.config.adjustedCastTime(skillInfo.baseCastTime, llCovered, inspired));
-		let capturedRecastTime = this.config.adjustedGCD(llCovered, inspired, skillInfo.baseRecastTime);
 		// hack for motifs, which are not affected by sps
 		if (props.skillName.includes("Motif")) {
 			capturedCastTime = skillInfo.baseCastTime;
-			capturedRecastTime = skillInfo.baseRecastTime;
 		}
 		if (llCovered && skillInfo.cdName===ResourceType.cd_GCD) {
 			props.node.addBuff(BuffType.LeyLines);
@@ -610,7 +608,7 @@ export class GameState {
 						// would be consumed before the Resource object can check the recast
 						: game.config.adjustedGCD(false, inspired, skillInfo.baseRecastTime)
 				);
-			cd.useStackWithRecast(game, recastTime);
+			cd.useStackWithRecast(game, game.config.getAfterTaxGCD(recastTime));
 
 			// animation lock
 			game.resources.takeResourceLock(ResourceType.NotAnimationLocked, game.config.getSkillAnimationLock(props.skillName));
@@ -674,7 +672,9 @@ export class GameState {
 		// would be consumed before the Resource object can check the recast
 		cd.useStackWithRecast(
 			this,
-			skillInfo.name.includes("Motif") ? skillInfo.baseRecastTime : this.config.adjustedGCD(false, inspired, skillInfo.baseRecastTime)
+			this.config.getAfterTaxGCD(
+				skillInfo.name.includes("Motif") ? skillInfo.baseRecastTime : this.config.adjustedGCD(false, inspired, skillInfo.baseRecastTime)
+			)
 		);
 
 		// caster tax
@@ -925,9 +925,6 @@ export class GameState {
 			cdRecastTime = skill.info.baseRecastTime;
 		} else if (skillName === SkillName.RainbowDrip && this.resources.get(ResourceType.RainbowBright).available(1)) {
 			cdRecastTime = this.config.adjustedGCD(false, false, 2.5);
-		}
-		if (skillName === SkillName.RainbowDrip) {
-			console.log("rainbow drip,", cdRecastTime);
 		}
 
 		// to be displayed together when hovered on a skill
