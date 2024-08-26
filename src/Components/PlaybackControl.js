@@ -218,15 +218,14 @@ function ConfigSummary(props) {
 	let numOverrides = controller.gameConfig.initialResourceOverrides.length;
 	const legacyCasterTax = controller.gameConfig.legacy_casterTax;
 	let excerpt = localize({
-		en: `WARNING: this record was created in an earlier version of BLM in the Shell and uses the deprecated caster tax of ${legacyCasterTax}s instead of calculating from your FPS input below. Hover for details: `,
+		en: `WARNING: this record was created in an earlier version of PCT in the Shell and uses the deprecated caster tax of ${legacyCasterTax}s instead of calculating from your FPS input below. Hover for details: `,
 		zh: `警告：此时间轴文件创建于一个更早版本的排轴器，因此计算读条时间时使用的是当时手动输入的读条税${legacyCasterTax}秒（现已过时），而非由下方的“帧率”和“读条时间修正”计算得来。更多信息：`
 	});
 	let warningColor = getCurrentThemeColors().warning;
 	let blurb = localize({
 		en: <div>
 				<div className={"paragraph"}>
-					The caster tax config is now replaced by 0.1s + FPS tax and is more precise.
-					You can read more about FPS tax in About this tool/Implementation notes.
+					GCD calculations now include FPS adjustment and is more precise.
 				</div>
 				<div className={"paragraph"} style={{color: warningColor}}>
 					You are strongly encouraged to create a new record (in another timeline slot or from 'apply and reset') and migrate your fight plan.
@@ -235,7 +234,7 @@ function ConfigSummary(props) {
 			</div>,
 		zh: <div>
 			<div className={"paragraph"}>
-				现在的“读条税”由固定的0.1s加自动计算的帧率税构成，模拟结果也更精确。有关帧率税的更多信息详见 关于/实现细节。
+				现在所有的GCD加上自动计算的帧率税构成，模拟结果也更精确。
 			</div>
 			<div className={"paragraph"} style={{color: warningColor}}>
 				排轴器今后的更新可能会导致无法加载过时的文件，所以强烈建议将此时间轴迁移到一个新建的存档中（添加时间轴，或者应用并重置时间轴）。
@@ -254,9 +253,6 @@ function ConfigSummary(props) {
 				})
 			}/> : undefined
 		}
-		<Expandable
-			title={"Cast times table"}
-			titleNode={<span>{localize({en: "Cast times table", zh: "咏唱时间表"})} <Help topic={"castTimesTable"} content={castTimesTableDesc}/></span>} defaultExpanded={true} content={castTimesChart}/>
 		{localize({en: "Lucid tick offset ", zh: "醒梦&跳蓝时间差 "})}<Help topic={"lucidTickOffset"} content={lucidOffsetDesc}/>: {lucidTickOffset}
 		<br/>{localize({en: "Thunder DoT tick offset ", zh: "跳雷&跳蓝时间差 "})}<Help topic={"thunderTickOffset"} content={thunderOffsetDesc}/>: {thunderTickOffset}
 		{procMode===ProcMode.RNG ? undefined : <span style={{color: "mediumpurple"}}><br/>Procs: {procMode}</span>}
