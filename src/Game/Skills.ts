@@ -856,7 +856,7 @@ export class DisplayedSkills extends Array<SkillName> {
 	constructor(levelSync: LevelSync) {
 		super();
 
-		const level = parseInt(levelSync);
+		const level = levelSync;
 
 		this.push(SkillName.Blizzard);
 		this.push(SkillName.Fire);
