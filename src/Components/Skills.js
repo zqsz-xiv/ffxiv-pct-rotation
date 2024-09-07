@@ -8,37 +8,7 @@ import {localize, localizeSkillName} from "./Localization";
 import {updateTimelineView} from "./Timeline";
 import * as ReactDOMServer from 'react-dom/server';
 import {getCurrentThemeColors} from "./ColorTheme";
-
-export let displayedSkills = [
-	SkillName.FireInRed,
-	SkillName.Fire2InRed,
-	SkillName.BlizzardInCyan,
-	SkillName.Blizzard2InCyan,
-	SkillName.HolyInWhite,
-	SkillName.CometInBlack,
-	SkillName.RainbowDrip,
-	SkillName.StarPrism,
-	SkillName.SubtractivePalette,
-	SkillName.CreatureMotif,
-	SkillName.LivingMuse,
-	SkillName.MogOfTheAges,
-	SkillName.WeaponMotif,
-	SkillName.SteelMuse,
-	SkillName.HammerStamp,
-	SkillName.LandscapeMotif,
-	SkillName.ScenicMuse,
-
-	SkillName.TemperaCoat,
-	SkillName.TemperaGrassa,
-	SkillName.Smudge,
-
-	SkillName.Addle,
-	SkillName.Swiftcast,
-	SkillName.LucidDreaming,
-	SkillName.Surecast,
-	SkillName.Tincture,
-	SkillName.Sprint
-];
+import {TraitName, Traits} from '../Game/Traits';
 
 // seems useful: https://na.finalfantasyxiv.com/lodestone/special/fankit/icon/
 export const skillIcons = new Map();
@@ -390,7 +360,7 @@ export class SkillsWindow extends React.Component {
 	}
 	componentDidMount() {
 		this.setState({
-			statusList: displayedSkills.map(sn=>{
+			statusList: controller.game.displayedSkills.map(sn=>{
 				return controller.getSkillInfo({game: controller.getDisplayedGame(), skillName: sn});
 			}),
 			paradoxInfo: undefined,
@@ -410,6 +380,7 @@ export class SkillsWindow extends React.Component {
 
 	render() {
 		let skillButtons = [];
+		let displayedSkills = controller.game.displayedSkills;
 		for (let i = 0; i < displayedSkills.length; i++) {
 			let skillName = displayedSkills[i];
 			let info = this.state.statusList ? this.state.statusList[i] : undefined;
