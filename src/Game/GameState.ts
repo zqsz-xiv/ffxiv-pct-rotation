@@ -124,9 +124,11 @@ export class GameState {
 
 		this.cooldowns.set(ResourceType.cd_TemperaCoat, new CoolDown(ResourceType.cd_TemperaCoat, 120, 1, 1));
 		this.cooldowns.set(ResourceType.cd_Smudge, new CoolDown(ResourceType.cd_Smudge, 20, 1, 1));
-		this.cooldowns.set(ResourceType.cd_LivingMuse, new CoolDown(ResourceType.cd_LivingMuse, 40, 3, 3));
+		const livingMuseStacks = Traits.hasUnlocked(TraitName.EnhancedPictomancyIV, this.config.level) ? 3 : 2;
+		this.cooldowns.set(ResourceType.cd_LivingMuse, new CoolDown(ResourceType.cd_LivingMuse, 40, livingMuseStacks, livingMuseStacks));
 		this.cooldowns.set(ResourceType.cd_Portrait, new CoolDown(ResourceType.cd_Portrait, 30, 1, 1));
-		this.cooldowns.set(ResourceType.cd_SteelMuse, new CoolDown(ResourceType.cd_SteelMuse, 60, 2, 2));
+		const hammerStacks = Traits.hasUnlocked(TraitName.EnhancedPictomancyII, this.config.level) ? 2 : 1;
+		this.cooldowns.set(ResourceType.cd_SteelMuse, new CoolDown(ResourceType.cd_SteelMuse, 60, hammerStacks, hammerStacks));
 		this.cooldowns.set(ResourceType.cd_ScenicMuse, new CoolDown(ResourceType.cd_ScenicMuse, 120, 1, 1));
 		// TODO handle these differently
 		this.cooldowns.set(ResourceType.cd_Subtractive, new CoolDown(ResourceType.cd_Subtractive, 1, 1, 1));
@@ -813,11 +815,13 @@ export class GameState {
 				inspiration.consume(1);
 				hyperphantasia.removeTimer();
 				inspiration.removeTimer();
-				this.resources.get(ResourceType.RainbowBright).gain(1);
-				this.resources.addResourceEvent({
-					rscType: ResourceType.RainbowBright,
-					name: "drop rainbow bright", delay: 30, fnOnRsc: (rsc: Resource) => rsc.consume(1),
-				});
+				if (Traits.hasUnlocked(TraitName.EnhancedPictomancyIII, this.config.level)) {
+					this.resources.get(ResourceType.RainbowBright).gain(1);
+					this.resources.addResourceEvent({
+						rscType: ResourceType.RainbowBright,
+						name: "drop rainbow bright", delay: 30, fnOnRsc: (rsc: Resource) => rsc.consume(1),
+					});
+				}
 			}
 		}
 	}

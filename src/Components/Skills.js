@@ -384,6 +384,7 @@ export class SkillsWindow extends React.Component {
 		for (let i = 0; i < displayedSkills.length; i++) {
 			let skillName = displayedSkills[i];
 			let info = this.state.statusList ? this.state.statusList[i] : undefined;
+			let level = controller.game.config.level;
 			// hacky since i'm too lazy to mess with getSkillAvailabilityStatus for replacement buttons
 			let highlight = false;
 
@@ -491,10 +492,12 @@ export class SkillsWindow extends React.Component {
 
 			if (skillName === SkillName.HammerStamp) {
 				// TODO handle combo drop
-				if (this.state.hammerStacks === 2) {
-					skillName = SkillName.HammerBrush;
-				} else if (this.state.hammerStacks === 1) {
-					skillName = SkillName.PolishingHammer;
+				if (Traits.hasUnlocked(TraitName.EnhancedPictomancyII, level)) {
+					if (this.state.hammerStacks === 2) {
+						skillName = SkillName.HammerBrush;
+					} else if (this.state.hammerStacks === 1) {
+						skillName = SkillName.PolishingHammer;
+					}
 				}
 			}
 
