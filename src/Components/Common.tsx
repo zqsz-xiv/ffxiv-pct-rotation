@@ -5,8 +5,43 @@ import {Tooltip as ReactTooltip} from "react-tooltip";
 import 'react-tooltip/dist/react-tooltip.css';
 import {getCurrentThemeColors} from "./ColorTheme";
 import {getCachedValue, setCachedValue} from "../Controller/Common";
+import {MAX_TIMELINE_SLOTS} from "../Controller/Timeline";
+import {LiaWindowMinimize} from "react-icons/lia";
 
 export type ContentNode = JSX.Element | string;
+
+export type ValueChangeEvent = React.ChangeEvent<{value: string}>;
+
+const MAX_BUFF_COVERS_COUNT = 3;
+export const TimelineDimensions = {
+
+	rulerHeight: 30,
+	trackHeight: 14,
+
+	slotPaddingTop: 12,
+	skillButtonHeight: 28,
+	buffCoverHeight: 4,
+	slotPaddingBottom: 4,
+	slotHeight: () => {
+		return TimelineDimensions.slotPaddingTop // 12
+			+ TimelineDimensions.skillButtonHeight * 1.5 // 42
+			+ TimelineDimensions.buffCoverHeight * MAX_BUFF_COVERS_COUNT // 12
+			+ TimelineDimensions.slotPaddingBottom; // 4
+	},
+	timelineCanvasHeight: (numMarkerTracks: number, numTimelineSlots: number) => {
+		let height = TimelineDimensions.rulerHeight;
+		height += TimelineDimensions.trackHeight * numMarkerTracks;
+		height += TimelineDimensions.slotHeight() * numTimelineSlots;
+		if (numTimelineSlots < MAX_TIMELINE_SLOTS) {
+			height += TimelineDimensions.addSlotButtonHeight;
+		}
+		return height;
+	},
+
+	leftBufferWidth: 20, // leave this much space on the left before starting to draw timeline (for timeline selection bar)
+	addSlotButtonHeight: 20
+
+}
 
 function getBlobUrl(content: object) {
 	let blob = new Blob([JSON.stringify(content)], {type: "text/plain;charset=utf-8"});
@@ -39,7 +74,7 @@ type SaveToFileProps = {
 	fileFormat: FileFormat,
 	displayName?: ContentNode
 };
-export class SaveToFile extends React.Component{
+export class SaveToFile extends React.Component {
 	props: SaveToFileProps;
 	state: { jsonContent: object, csvContent: Array<Array<any>>, pngContent?: HTMLCanvasElement }
 	constructor(props: SaveToFileProps) {
@@ -163,7 +198,6 @@ type ClickableProps = {
 	style?: CSSProperties
 }
 
-// todo: bind hotkeys to them?
 export function Clickable(props: ClickableProps) {
 	return <div
 		className={"clickable"}
@@ -198,6 +232,123 @@ export function ProgressBar(props: {
 	};
 	return <div style={containerStyle}>
 		<div style={fillerStyle}/>
+	</div>
+}
+
+export type TabItem = {
+	titleNode: ContentNode,
+	contentNode: ContentNode
+};
+
+export const TABS_TITLE_HEIGHT = 26;
+export function Tabs(props: {
+	uniqueName: string,
+	content: TabItem[],
+	collapsible: boolean,
+	height: number,
+	defaultSelectedIndex: number | undefined,
+	style?: CSSProperties
+}) {
+
+	const titleHeight = TABS_TITLE_HEIGHT - 2; // the top and bottom border each takes up 1px
+	const [selectedIndex, setSelectedIndex] = React.useState<number | undefined>(undefined);
+
+	// initialization
+	useEffect(() => {
+		let selected: number | undefined = props.defaultSelectedIndex;
+		// if a cached value exists, it will always override the default
+		let cachedSelected = getCachedValue(props.uniqueName + "SelectedTab");
+		if (cachedSelected !== null) {
+			if (cachedSelected === "none") {
+				selected = undefined;
+			} else {
+				selected = parseInt(cachedSelected);
+			}
+		}
+		setSelectedIndex(selected);
+	}, [props.defaultSelectedIndex, props.uniqueName]);
+
+	const colors = getCurrentThemeColors();
+
+	const tabStyle: (tabIndex: number) => CSSProperties = function(tabIndex) {
+		const borderColor: string = tabIndex===selectedIndex ? colors.bgHighContrast : colors.bgMediumContrast;
+		const visibleBorder = "1px solid " + borderColor;
+		const invisibleBorder = "1px solid " + colors.background;
+
+		let borderBottom: string = visibleBorder;
+		if (tabIndex===selectedIndex || selectedIndex===undefined) {
+			borderBottom = invisibleBorder;
+		}
+		let borderTop = tabIndex===selectedIndex ? visibleBorder : invisibleBorder;
+		let borderLeft = invisibleBorder;
+		let borderRight = invisibleBorder;
+		if (tabIndex===selectedIndex) {
+			borderLeft = visibleBorder;
+			borderRight = visibleBorder;
+		} else if (
+			tabIndex > 0 && // not the first tab
+			(selectedIndex===undefined || selectedIndex + 1 !== tabIndex) // collapsed || not immediately to the right of selected
+		) {
+			borderLeft = visibleBorder
+		}
+		return {
+			margin: 0,
+			display: "inline-block",
+			boxSizing: "border-box",
+			padding: "0 12px",
+			borderBottom: borderBottom,
+			borderTop: borderTop,
+			borderLeft: borderLeft,
+			borderRight: borderRight,
+			lineHeight: `${titleHeight}px`,
+			color: tabIndex===selectedIndex ? colors.emphasis : colors.text,
+			cursor: (props.collapsible || tabIndex!==selectedIndex) ? "pointer" : "default",
+		};
+	}
+
+	const titles: ContentNode[] = [];
+	let content: ContentNode[] = [];
+	for (let i = 0; i < props.content.length; i++) {
+
+		const isSelectedTab = i === selectedIndex;
+
+		titles.push(<span key={i} style={tabStyle(i)} onClick={() => {
+			let newIndex: number | undefined = selectedIndex;
+			if (!isSelectedTab) { newIndex = i; }
+			else if (props.collapsible) { newIndex = undefined; }
+			setSelectedIndex(newIndex);
+			setCachedValue(props.uniqueName + "SelectedTab", newIndex===undefined ? "none" : `${newIndex}`);
+		}}>{props.content[i].titleNode}</span>);
+
+		content.push(<div key={i} style={{
+			display: isSelectedTab ? "block" : "none"
+		}}>{props.content[i].contentNode}</div>)
+	}
+
+	if (props.collapsible && selectedIndex !== undefined) {
+		titles.push(<span
+			key={titles.length}
+			onClick={() => {setSelectedIndex(undefined);}}
+		><LiaWindowMinimize style={{
+			marginLeft: 16,
+			fontSize: 14,
+			cursor: "pointer",
+			position: "relative",
+			top: 3
+		}}/></span>)
+	}
+
+	return <div style={{...{
+		position: "relative",
+	}, ...props.style}}>
+		<div>{titles}</div>
+		<div className={"staticScrollbar"} style={{
+			display: selectedIndex === undefined ? "none" : "block",
+			height: props.height - titleHeight,
+			boxSizing: "border-box",
+			padding: "10px 5px",
+			overflowY: "scroll"
+		}}>{content}</div>
 	</div>
 }
 
@@ -240,6 +391,7 @@ type SliderProps = {
 	onChange?: (e: string) => void,
 	defaultValue?: string,
 	description?: ContentNode
+	style?: CSSProperties
 }
 type SliderState = {
 	value: string,
@@ -266,14 +418,14 @@ export class Slider extends React.Component {
 		if (typeof this.props.onChange !== "undefined") this.props.onChange(this.state.value);
 	}
 	render() {
-		return <div style={{display: "inline-block"}}>
+		return <div style={{...{display: "inline-block"}, ...this.props.style}}>
 			<span>{this.props.description ?? ""}</span>
 			<input
 				size={10} type="range"
 				value={this.state.value}
 				min={0.05}
 				max={1}
-				step={0.05}
+				step={0.025}
 				onChange={this.onChange}
 				style={{position: "relative", outline: "none"}}/>
 		</div>
@@ -457,7 +609,6 @@ export function ButtonIndicator(props: {text: ContentNode}) {
 }
 
 let setGlobalHelpTooltipContent = (newContent: ContentNode)=>{};
-let setGlobalInfoTooltipContent = (newContent: ContentNode)=>{};
 
 export function GlobalHelpTooltip(props: {
 	content: ContentNode
@@ -490,22 +641,6 @@ export function GlobalHelpTooltip(props: {
 	</div>
 }
 
-export function GlobalInfoTooltip(props: {
-	content: ContentNode
-}) {
-	const [tipContent, setTipContent] = useState(props.content);
-	// hook up update function
-	useEffect(()=>{
-		setGlobalInfoTooltipContent = (newContent: ContentNode)=>{
-			setTipContent(newContent);
-		};
-	}, []);
-
-	return <ReactTooltip anchorSelect=".global-info-tooltip" className="info-tooltip" classNameArrow="info-tooltip-arrow">
-		{tipContent}
-	</ReactTooltip>
-}
-
 export function Help(props: {topic: string, content: ContentNode}) {
 	let colors = getCurrentThemeColors();
 	let style: CSSProperties = {
@@ -513,6 +648,7 @@ export function Help(props: {topic: string, content: ContentNode}) {
 		position: "relative",
 		width: 12,
 		height: 12,
+		lineHeight: 1,
 		cursor: "help",
 		background: colors.bgHighContrast,
 		borderRadius: 6,
@@ -524,10 +660,4 @@ export function Help(props: {topic: string, content: ContentNode}) {
 	}}>
 		<span style={{position: "relative", top: -1, color: "white"}}>&#63;</span>
 	</span>
-}
-
-export function Info(props: {hoverableNode: ContentNode, getInfoFn: ()=>ContentNode}) {
-	return <div className="global-info-tooltip" data-tooltip-offset={4} onMouseEnter={()=>{
-		setGlobalInfoTooltipContent(props.getInfoFn());
-	}}>{props.hoverableNode}</div>
 }

@@ -23,9 +23,12 @@ export const enum ShellVersion {
 }
 
 export const enum ShellJob {
-	BLM = 0,
-	PCT = 1
+	BLM = "BLM",
+	PCT = "PCT",
 }
+
+// can't get this automatically from a const enum
+export const ALL_JOBS = [ShellJob.BLM, ShellJob.PCT];
 
 export const enum Expansion {
 	EW = "EW",
@@ -34,7 +37,8 @@ export const enum Expansion {
 
 export const ShellInfo = {
 	version: ShellVersion.FpsTax,
-	job: ShellJob.PCT
+	job: ShellJob.PCT,
+	// job: ShellJob.BLM,
 	// thisExpansion is not exported so it stays local outside
 };
 

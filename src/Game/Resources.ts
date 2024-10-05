@@ -1,6 +1,8 @@
 import {Debug, ResourceType} from "./Common"
+import {ShellInfo, ShellJob, ALL_JOBS} from "../Controller/Common";
 import {GameState} from "./GameState";
 import {ActionNode} from "../Controller/Record";
+import {BLMState} from "./Jobs/BLM";
 
 export enum EventTag {
 	ManaGain,
@@ -17,7 +19,7 @@ export class Event {
 	canceled: boolean;
 
 	// effectFn : () -> ()
-	constructor(name: string, delay: number, effectFn: ()=>void) {
+	constructor(name: string, delay: number, effectFn: () => void) {
 		this.name = name;
 		this.#tags = [];
 		this.timeTillEvent = delay;
@@ -61,7 +63,7 @@ export class Resource {
 			));
 			this.pendingChange.timeTillEvent = newTime;
 		} else {
-			console.assert(false);
+			console.error(`Failed to override non-pending resource timer for resource: ${this.type}`);
 		}
 	}
 	removeTimer() {
@@ -121,17 +123,10 @@ export class CoolDown extends Resource {
 		// roll the GCD with a special recast value
 		this.consume(this.#currentBaseRecast);
 		this.maxValue = recast;
-		// LL/HP modifier
+		// LL modifier
+		// (PCT handles hyperphantasia logic separately)
 		this.#reCaptureRecastTimeScale(game);
 		// scale for spells with longer cast/recast
-		this.#currentBaseRecast = recast;
-	}
-	useStackWithFixedRecast(game: GameState, recast: number) {
-		// roll the GCD with a special recast value for spells that are unaffected
-		// by haste buffs or sps (i.e. picto motifs)
-		this.consume(this.#currentBaseRecast);
-		this.maxValue = recast;
-		this.#recastTimeScale = 1;
 		this.#currentBaseRecast = recast;
 	}
 	setRecastTimeScale(timeScale: number) { this.#recastTimeScale = timeScale; }
@@ -159,22 +154,33 @@ export class CoolDown extends Resource {
 	}
 }
 
-export class CoolDownState extends Map<ResourceType, CoolDown> {
+export class CoolDownState {
 	game: GameState;
+	#map: Map<ResourceType, CoolDown>;
 	constructor(game: GameState) {
-		super();
 		this.game = game;
+		this.#map = new Map();
 	}
+
+	forEach(fn: (cd: CoolDown, cdName: ResourceType) => void) {
+		this.#map.forEach(fn);
+	}
+
 	get(rscType: ResourceType): CoolDown {
-		let rsc = super.get(rscType);
+		let rsc = this.#map.get(rscType);
 		if (rsc) return rsc;
 		else {
-			console.assert(false);
+			console.assert(false, `no cooldown for resource ${rscType}`);
 			return new CoolDown(ResourceType.Never, 0, 0, 0);
 		}
 	}
+
+	set(cd: CoolDown) {
+		this.#map.set(cd.type, cd);
+	}
+
 	tick(deltaTime: number) {
-		for (const cd of this.values()) cd.restore(this.game, deltaTime);
+		for (const cd of this.#map.values()) cd.restore(this.game, deltaTime);
 	}
 	stacksAvailable(rscType: ResourceType): number {
 		return this.get(rscType).stacksAvailable();
@@ -194,20 +200,26 @@ export class CoolDownState extends Map<ResourceType, CoolDown> {
 	}
 }
 
-export class ResourceState extends Map<ResourceType, Resource> {
+export class ResourceState {
 	game: GameState;
+	#map: Map<ResourceType, Resource>;
 	constructor(game: GameState) {
-		super();
 		this.game = game;
+		this.#map = new Map();
 	}
 
 	get(rscType: ResourceType): Resource {
-		let rsc = super.get(rscType);
+		let rsc = this.#map.get(rscType);
 		if (rsc) return rsc;
 		else {
-			console.error("cannot find resource", rscType, "in current GameState");
+			// TODO uncomment this once job-specific blm frontend is separated out
+			// console.error(`could not find resource ${rscType}`);
 			return new Resource(ResourceType.Never, 0, 0);
 		}
+	}
+
+	set(resource: Resource) {
+		this.#map.set(resource.type, resource);
 	}
 
 	timeTillReady(rscType: ResourceType): number {
@@ -266,50 +278,58 @@ export type CoolDownInfo = {
 }
 export type ResourceOrCoolDownInfo = ResourceInfo | CoolDownInfo;
 
-export const resourceInfos = new Map<ResourceType, ResourceOrCoolDownInfo>();
+const resourceInfos = new Map<ShellJob, Map<ResourceType, ResourceOrCoolDownInfo>>();
 
-// resources
-resourceInfos.set(ResourceType.Mana, { isCoolDown: false, defaultValue: 10000, maxValue: 10000, maxTimeout: -1 });
-resourceInfos.set(ResourceType.Polyglot, { isCoolDown: false, defaultValue: 0, maxValue: 3, maxTimeout: 30 });
-resourceInfos.set(ResourceType.AstralFire, { isCoolDown: false, defaultValue: 0, maxValue: 3, maxTimeout: -1 });
-resourceInfos.set(ResourceType.UmbralIce, { isCoolDown: false, defaultValue: 0, maxValue: 3, maxTimeout: -1 });
-resourceInfos.set(ResourceType.UmbralHeart, { isCoolDown: false, defaultValue: 0, maxValue: 3, maxTimeout: -1 });
-resourceInfos.set(ResourceType.AstralSoul, { isCoolDown: false, defaultValue: 0, maxValue: 6, maxTimeout: -1 });
+export function getResourceInfo(job: ShellJob, rsc: ResourceType): ResourceOrCoolDownInfo {
+	const map = resourceInfos.get(job)!;
+	if (!map.has(rsc)) {
+		console.error(`no resource info found for ${rsc}`);
+	}
+	return map.get(rsc)!;
+}
 
-resourceInfos.set(ResourceType.LeyLines, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 30 });
-resourceInfos.set(ResourceType.Enochian, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 15 }); // controls AF, UI, UH
-resourceInfos.set(ResourceType.Paradox, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: -1 });
-resourceInfos.set(ResourceType.Firestarter, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 30 });
-resourceInfos.set(ResourceType.Thunderhead, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 30 });
-resourceInfos.set(ResourceType.ThunderDoT, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 30 }); // buff display only
-resourceInfos.set(ResourceType.Manaward, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 20 });
-resourceInfos.set(ResourceType.Triplecast, { isCoolDown: false, defaultValue: 0, maxValue: 3, maxTimeout: 15 });
-resourceInfos.set(ResourceType.Addle, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 15 });
-resourceInfos.set(ResourceType.Swiftcast, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 10 });
-resourceInfos.set(ResourceType.LucidDreaming, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 21 }); // buff display only
-resourceInfos.set(ResourceType.Surecast, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 10 });
-resourceInfos.set(ResourceType.Tincture, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 30 });
-resourceInfos.set(ResourceType.Sprint, { isCoolDown: false, defaultValue: 0, maxValue: 1, maxTimeout: 10 });
+export function getAllResources(job: ShellJob): Map<ResourceType, ResourceOrCoolDownInfo> {
+	return resourceInfos.get(job)!;
+}
 
-// CDs
-resourceInfos.set(ResourceType.cd_GCD, { isCoolDown: true, maxStacks: 1, cdPerStack: 2.5 });
-resourceInfos.set(ResourceType.cd_LeyLines, { isCoolDown: true, maxStacks: 1, cdPerStack: 120 });
-resourceInfos.set(ResourceType.cd_Transpose, { isCoolDown: true, maxStacks: 1, cdPerStack: 5 });
-resourceInfos.set(ResourceType.cd_Manaward, { isCoolDown: true, maxStacks: 1, cdPerStack: 120 });
-resourceInfos.set(ResourceType.cd_BetweenTheLines, { isCoolDown: true, maxStacks: 1, cdPerStack: 3 });
-resourceInfos.set(ResourceType.cd_AetherialManipulation, { isCoolDown: true, maxStacks: 1, cdPerStack: 10 });
-resourceInfos.set(ResourceType.cd_Triplecast, { isCoolDown: true, maxStacks: 2, cdPerStack: 60 });
-resourceInfos.set(ResourceType.cd_Manafont, { isCoolDown: true, maxStacks: 1, cdPerStack: 100 });
-resourceInfos.set(ResourceType.cd_Amplifier, { isCoolDown: true, maxStacks: 1, cdPerStack: 120 });
-resourceInfos.set(ResourceType.cd_Retrace, { isCoolDown: true, maxStacks: 1, cdPerStack: 40 });
-resourceInfos.set(ResourceType.cd_Addle, { isCoolDown: true, maxStacks: 1, cdPerStack: 90 });
-resourceInfos.set(ResourceType.cd_Swiftcast, { isCoolDown: true, maxStacks: 1, cdPerStack: 40 });
-resourceInfos.set(ResourceType.cd_LucidDreaming, { isCoolDown: true, maxStacks: 1, cdPerStack: 60 });
-resourceInfos.set(ResourceType.cd_Surecast, { isCoolDown: true, maxStacks: 1, cdPerStack: 120 });
-resourceInfos.set(ResourceType.cd_Tincture, { isCoolDown: true, maxStacks: 1, cdPerStack: 270 });
-resourceInfos.set(ResourceType.cd_Sprint, { isCoolDown: true, maxStacks: 1, cdPerStack: 60 });
+// Add a status effect or job gauge element to the resource map of the specified job.
+export function makeResource(job: ShellJob, rsc: ResourceType, maxValue: number, params: Partial<{
+	default: number,
+	timeout: number,
+}>) {
+	getAllResources(job).set(rsc, {
+		isCoolDown: false,
+		defaultValue: params.default ?? 0,
+		maxValue: maxValue,
+		maxTimeout: params.timeout ?? -1,
+	});
+}
 
-type ResourceOverrideProps = {
+ALL_JOBS.forEach((job) => {
+	resourceInfos.set(job, new Map([[ResourceType.cd_GCD, {
+		// special declaration for GCD override default
+		isCoolDown: true,
+		maxStacks: 1,
+		cdPerStack: 2.5
+	}]]));
+	// MP, tincture buff, and sprint are common to all jobs
+	makeResource(job, ResourceType.Mana, 10000, {default: 10000});
+	makeResource(job, ResourceType.Tincture, 1, {timeout: 30});
+	makeResource(job, ResourceType.Sprint, 1, {timeout: 10});
+});
+
+// Add an ability to the resource map of the specified job.
+// Should only be called within the makeAbility constructor, except for the default GCD cooldown.
+// May be called multiple times if skills share a cooldown (such as picto living muse variants)
+export function makeCooldown(job: ShellJob, rsc: ResourceType, cdPerStack: number, maxStacks: number = 1) {
+	getAllResources(job).set(rsc, {
+		isCoolDown: true,
+		cdPerStack: cdPerStack,
+		maxStacks: maxStacks,
+	});
+}
+
+export type ResourceOverrideData = {
 	type: ResourceType,
 	timeTillFullOrDrop: number, // CDs (full), buff/procs (drop)
 	stacks: number, // Triplecast, MP, AF, UI, UH, Paradox, Polyglot
@@ -323,7 +343,7 @@ export class ResourceOverride {
 	stacks: number; // Triplecast, MP, AF, UI, UH, Paradox, Polyglot
 	effectOrTimerEnabled: boolean; // LL, halt
 
-	constructor(props: ResourceOverrideProps) {
+	constructor(props: ResourceOverrideData) {
 		this.type = props.type;
 		this.timeTillFullOrDrop = props.timeTillFullOrDrop;
 		this.stacks = props.stacks;
@@ -363,8 +383,7 @@ export class ResourceOverride {
 	// other buffs: time till drop
 	// MP, AF, UI, UH, Paradox, Polyglot: amount (stacks)
 	applyTo(game: GameState) {
-
-		let info = resourceInfos.get(this.type);
+		let info = getAllResources(ShellInfo.job).get(this.type);
 		if (!info) {
 			console.assert(false);
 			return;
@@ -387,12 +406,13 @@ export class ResourceOverride {
 					name: "drop " + rsc.type,
 					delay: newTimer,
 					fnOnRsc: (r: Resource) => {
-						  if (rsc.type === ResourceType.Enochian) { // since enochian should also take away AF/UI/UH stacks
-							  game.loseEnochian();
-						  } else {
-							  r.consume(r.availableAmount());
-						  }
-					 }
+						if (rsc.type === ResourceType.Enochian) { // since enochian should also take away AF/UI/UH stacks
+							// TODO move to job-specific code
+							(game as BLMState).loseEnochian();
+						} else {
+							r.consume(r.availableAmount());
+						}
+					}
 				});
 			};
 
@@ -446,7 +466,7 @@ export class ResourceOverride {
 		}
 	}
 
-	serialized() {
+	serialized(): ResourceOverrideData {
 		return {
 			type: this.type,
 			timeTillFullOrDrop: this.timeTillFullOrDrop,

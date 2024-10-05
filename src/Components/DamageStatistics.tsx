@@ -5,6 +5,7 @@ import {PotencyModifier, PotencyModifierType} from "../Game/Potency";
 import {getCurrentThemeColors} from "./ColorTheme";
 import {localize, localizeSkillName} from "./Localization";
 import {controller} from "../Controller/Controller";
+import {ShellJob, ShellInfo} from "../Controller/Common";
 import {
 	allSkillsAreIncluded,
 	getSkillOrDotInclude,
@@ -93,6 +94,11 @@ export type DamageStatisticsData = {
 
 export let updateDamageStats = (data: DamageStatisticsData) => {};
 export let updateSelectedStats = (data: SelectedStatisticsData) => {};
+
+// hook for tests to access damage stats
+export const mockDamageStatUpdateFn = (updateFn: (update: DamageStatisticsData) => void) => {
+	updateDamageStats = updateFn;
+};
 
 function buffName(buff: PotencyModifierType) {
 	let text = "";
@@ -314,6 +320,7 @@ export class DamageStatistics extends React.Component {
 					</div>
 				}/>{colon}{ppsAvailable ? (this.data.totalPotency.applied / targetableDurationTilLastDisplay).toFixed(2) : "N/A"}</div>
 				<div>{gcdStr}</div>
+				{ShellInfo.job === ShellJob.BLM && <div>{dotStr}</div>}
 				<div>
 					<SaveToFile fileFormat={FileFormat.Csv} getContentFn={()=>{
 						return controller.getDamageLogCsv();
@@ -651,6 +658,7 @@ export class DamageStatistics extends React.Component {
 			{summary}
 			<div>
 				{mainTable}
+				{ShellInfo.job === ShellJob.BLM && thunderTable}
 			</div>
 		</div>
 	}

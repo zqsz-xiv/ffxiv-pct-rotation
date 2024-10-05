@@ -11,6 +11,7 @@ import {
 	SaveToFile
 } from "./Common";
 import {controller} from "../Controller/Controller";
+import {ShellInfo, ShellJob} from "../Controller/Common";
 import {ElemType, MarkerElem, MarkerType, UntargetableMarkerTrack} from "../Controller/Timeline";
 import {localize, localizeBuffType} from "./Localization";
 import {getCurrentThemeColors, MarkerColor} from "./ColorTheme";
@@ -261,8 +262,8 @@ export class TimelineMarkerPresets extends React.Component {
 
 		let buffCollection: JSX.Element[] = [];
 		buffInfos.forEach(info => {
-			// prevent starry from being selectable since we're the pictomancer now
-			if (info.name !== BuffType.StarryMuse) {
+			// prevent starry from being selectable if we're the pictomancer
+			if (ShellInfo.job === ShellJob.PCT && info.name !== BuffType.StarryMuse) {
 				buffCollection.push(<option key={info.name} value={info.name}>{localizeBuffType(info.name)}</option>)
 			}
 		});
@@ -285,7 +286,7 @@ export class TimelineMarkerPresets extends React.Component {
 			</div>
 		</div>
 
-		let content = <div>
+		return <div>
 			<button style={btnStyle} onClick={()=>{
 				controller.timeline.deleteAllMarkers();
 				controller.updateStats();
@@ -425,11 +426,6 @@ export class TimelineMarkerPresets extends React.Component {
 				<span>{localize({en: "Save marker tracks to file: ", zh: "保存标记到文件："})}</span>
 				{saveTrackLinks}
 			</div>
-		</div>;
-		return <Expandable
-			title="Timeline markers"
-			titleNode={<span>{localize({en: "Timeline markers", zh: "时间轴标记"})}</span>}
-			content={content}
-			defaultShow={false}/>
+		</div>
 	}
 }

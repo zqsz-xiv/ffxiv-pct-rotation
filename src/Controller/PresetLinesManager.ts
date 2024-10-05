@@ -1,6 +1,5 @@
 import {FileType, getCachedValue, setCachedValue} from "./Common";
 import {ActionNode, Line} from "./Record";
-// @ts-ignore
 import {updateSkillSequencePresetsView} from "../Components/SkillSequencePresets";
 
 type Fixme = any;
@@ -49,8 +48,6 @@ export class PresetLinesManager {
 			}
 			this.addLine(line);
 		}
-		updateSkillSequencePresetsView();
-		this.#save();
 	}
 
 	addLine(line: Line) {

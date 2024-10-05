@@ -128,6 +128,7 @@ export const enum SkillReadyStatus {
 	NotEnoughMP = "not enough MP",
 	NotInCombat = "must be in combat (after first damage application)",
 	RequirementsNotMet = "requirements not met",
+	SkillNotUnlocked = "skill not unlocked at provided level",
 	BuffNoLongerAvailable = "buff no longer available"
 }
 

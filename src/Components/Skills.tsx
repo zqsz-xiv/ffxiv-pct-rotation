@@ -1,82 +1,29 @@
-import React from 'react'
-import {Clickable, Help, parseTime} from "./Common";
-import {Debug, ResourceType, SkillName, SkillReadyStatus} from "../Game/Common";
+import React, {FormEvent, FormEventHandler} from 'react'
+import {Clickable, ContentNode, Help, parseTime, ValueChangeEvent} from "./Common";
+import {Debug, SkillName, SkillReadyStatus} from "../Game/Common";
 import {controller} from "../Controller/Controller";
+import {ShellInfo} from "../Controller/Common";
 import {Tooltip as ReactTooltip} from 'react-tooltip';
 import {ActionType} from "../Controller/Record";
 import {localize, localizeSkillName} from "./Localization";
 import {updateTimelineView} from "./Timeline";
 import * as ReactDOMServer from 'react-dom/server';
 import {getCurrentThemeColors} from "./ColorTheme";
-import {TraitName, Traits} from '../Game/Traits';
+import {getAllSkills} from "../Game/Skills";
+
+// Imports of Game/Jobs/* must come after Game/Skills is initialized.
+import "../Game/Jobs/BLM";
+import "../Game/Jobs/PCT";
+import "../Game/Jobs/RoleActions";
 
 // seems useful: https://na.finalfantasyxiv.com/lodestone/special/fankit/icon/
 export const skillIcons = new Map();
-const pctSkills = [
-	SkillName.Aero2InGreen,
-	SkillName.AeroInGreen,
-	SkillName.Blizzard2InCyan,
-	SkillName.BlizzardInCyan,
-	SkillName.ClawMotif,
-	SkillName.ClawedMuse,
-	SkillName.CometInBlack,
-	SkillName.CreatureMotif,
-	SkillName.FangedMuse,
-	SkillName.Fire2InRed,
-	SkillName.FireInRed,
-	SkillName.HammerBrush,
-	SkillName.HammerMotif,
-	SkillName.HammerStamp,
-	SkillName.HolyInWhite,
-	SkillName.LandscapeMotif,
-	SkillName.LivingMuse,
-	SkillName.MawMotif,
-	SkillName.MogOfTheAges,
-	SkillName.PolishingHammer,
-	SkillName.PomMotif,
-	SkillName.PomMuse,
-	SkillName.RainbowDrip,
-	SkillName.RetributionOfTheMadeen,
-	SkillName.ScenicMuse,
-	SkillName.Smudge,
-	SkillName.StarPrism,
-	SkillName.StarryMuse,
-	SkillName.StarrySkyMotif,
-	SkillName.SteelMuse,
-	SkillName.StrikingMuse,
-	SkillName.Stone2InYellow,
-	SkillName.StoneInYellow,
-	SkillName.SubtractivePalette,
-	SkillName.TemperaCoat,
-	SkillName.TemperaCoatPop,
-	SkillName.TemperaGrassa,
-	SkillName.TemperaGrassaPop,
-	SkillName.Thunder2InMagenta,
-	SkillName.ThunderInMagenta,
-	SkillName.Water2InBlue,
-	SkillName.WaterInBlue,
-	SkillName.WeaponMotif,
-	SkillName.WingMotif,
-	SkillName.WingedMuse,
-];
 
-const casterRoleSkills = [
-	SkillName.Addle,
-	SkillName.Swiftcast,
-	SkillName.LucidDreaming,
-	SkillName.Surecast,
-	SkillName.Tincture,
-];
-
-pctSkills.forEach(
-	(skill) => skillIcons.set(skill, require(`./Asset/Skills/PCT/${skill}.png`))
+// Only import necessary skills
+// TODO: change this if we serve multiple jobs off the same site
+getAllSkills(ShellInfo.job)!.forEach(
+	(skillInfo) => skillIcons.set(skillInfo.name, require(`./Asset/Skills/${skillInfo.assetPath}`)),
 );
-
-casterRoleSkills.forEach(
-	(skill) => skillIcons.set(skill, require(`./Asset/Skills/CasterRole/${skill}.png`))
-);
-
-skillIcons.set(SkillName.Sprint, require("./Asset/Skills/General/Sprint.png"));
 
 export const skillIconImages = new Map();
 skillIcons.forEach((path, skillName)=>{
@@ -88,8 +35,6 @@ skillIcons.forEach((path, skillName)=>{
 	skillIconImages.set(skillName, imgObj);
 });
 
-// eslint-disable-next-line no-unused-vars
-let setSkillInfoText = (text)=>{}; // text: skill info tooltip content
 function ProgressCircle(props={
 	className: "",
 	diameter: 50,
@@ -117,9 +62,23 @@ function ProgressCircle(props={
 	</svg>
 }
 
+type SkillButtonProps = {
+	highlight: boolean,
+	skillName: SkillName,
+	ready: boolean,
+	cdProgress: number
+};
+
 class SkillButton extends React.Component {
-	constructor(props) {
+	props: SkillButtonProps;
+	state: {
+		skillDescription: React.ReactElement;
+	};
+	handleMouseEnter: () => void;
+
+	constructor(props: SkillButtonProps) {
 		super(props);
+		this.props = props;
 		this.state = {
 			skillDescription: <div/>
 		};
@@ -129,7 +88,7 @@ class SkillButton extends React.Component {
 				skillName: this.props.skillName
 			});
 			let colors = getCurrentThemeColors();
-			let s = "";
+			let s: ContentNode = "";
 			if (info.status === SkillReadyStatus.Ready) {
 				let en = "ready (" + info.stacksAvailable;
 				let zh = "可释放 (" + info.stacksAvailable;
@@ -176,14 +135,14 @@ class SkillButton extends React.Component {
 	}
 	render() {
 		let iconPath = skillIcons.get(this.props.skillName);
-		let iconStyle = {
+		let iconStyle: React.CSSProperties = {
 			width: 48,
 			height: 48,
 			verticalAlign: "top",
 			position: "relative",
 			display: "inline-block"
 		};
-		let iconImgStyle = {
+		let iconImgStyle: React.CSSProperties = {
 			width: 40,
 			height: 40,
 			position: "absolute",
@@ -215,15 +174,16 @@ class SkillButton extends React.Component {
 		if (readyStacks > 0) {
 			// expensive but whatever if it ever becomes a performance problem I'll just turn the icons into a canvas
 			// the red/orange border
-			textShadow = "0 0 3px rgba(255, 50, 0, 1), 0 0 4px rgba(255, 100, 0, 1), 0 0 6px rgba(255, 100, 0, 1)";
+			textShadow = "0 0 2px rgba(255, 50, 0, 1), 0 0 3px rgba(255, 100, 0, 1), 0 0 5px rgba(255, 100, 0, 1)";
 			// darken background
-			for (let i = 0; i < 4; i++) {
+			const darkenLayers = readyStacks === maxStacks ? 5 : 3;
+			for (let i = 0; i < darkenLayers; i++) {
 				textShadow += `, 0 0 10px black`;
 			}
 			fontColor = "white";
 		} else {
 			textShadow = "0 0 4px black, 0 0 8px black";
-			fontColor = "rgb(202,40,40)";
+			fontColor = "rgb(223,60,60)";
 		}
 
 		if (maxStacks > 1) {
@@ -285,7 +245,7 @@ class SkillButton extends React.Component {
 			progress={this.props.cdProgress}
 			color={this.props.ready ? "rgba(255, 255, 255, 0.7)" : "rgba(255,255,255,0.7)"}/>;
 		return <span
-			title={this.skillName}
+			title={this.props.skillName}
 			className={"skillButton"}
 			data-tooltip-offset={3}
 			data-tooltip-html={
@@ -301,45 +261,58 @@ class SkillButton extends React.Component {
 	}
 }
 
-const WaitSince = {
-	"Now": "Now",
-	"LastSkill": "LastSkill"
+enum WaitSince {
+	Now = "Now",
+	LastSkill = "LastSkill"
+}
+
+export type SkillButtonViewInfo = {
+	skillName: SkillName,
+	status: SkillReadyStatus,
+	stacksAvailable: number,
+	maxStacks: number,
+	castTime: number,
+	instantCast: boolean,
+	cdRecastTime: number,
+	timeTillNextStackReady: number,
+	timeTillAvailable: number,
+	timeTillDamageApplication: number,
+	capturedManaCost: number,
+	highlight: boolean,
+	llCovered: boolean
 };
 
-export var updateSkillButtons = (statusList, paradoxReady, retraceReady)=>{}
+export let updateSkillButtons = (statusList: SkillButtonViewInfo[])=>{}
 export class SkillsWindow extends React.Component {
-	constructor(props) {
+	state: {
+		statusList: SkillButtonViewInfo[],
+		waitTime: string,
+		waitSince: WaitSince,
+		waitUntil: string,
+	};
+
+	onWaitTimeChange: (e: ValueChangeEvent) => void;
+	onWaitTimeSubmit: FormEventHandler<HTMLFormElement>;
+	onWaitUntilChange: (e: ValueChangeEvent) => void;
+	onWaitUntilSubmit: FormEventHandler<HTMLFormElement>;
+	onWaitSinceChange: (e: ValueChangeEvent) => void;
+	onRemoveTrailingIdleTime: () => void;
+	onWaitTillNextMpOrLucidTick: () => void;
+
+	constructor(props: {}) {
 		super(props);
-		updateSkillButtons = ((statusList, paradoxReady, retraceReady)=>{
+		updateSkillButtons = ((statusList) => {
 			this.setState({
 				statusList: statusList,
-				paradoxReady: paradoxReady,
-				paradoxInfo: undefined,
-				retraceReady: retraceReady,
-				retraceInfo: undefined,
-				subtractiveReady: controller.game.resources.get(ResourceType.SubtractivePalette).available(1),
-				aetherhuesStacks: controller.game.resources.get(ResourceType.Aetherhues).availableAmount(),
-				creatureReady: controller.game.resources.get(ResourceType.CreatureCanvas).available(1),
-				depictions: controller.game.resources.get(ResourceType.Depictions).availableAmount(),
-				portrait: controller.game.resources.get(ResourceType.Portrait).availableAmount(),
-				landscapeReady: controller.game.resources.get(ResourceType.LandscapeCanvas).available(1),
-				hammerReady: controller.game.resources.get(ResourceType.WeaponCanvas).available(1),
-				hammerStacks: controller.game.resources.get(ResourceType.HammerTime).availableAmount(),
-				hasTemperaCoat: controller.game.resources.get(ResourceType.TemperaCoat).available(1),
-				hasTemperaGrassa: controller.game.resources.get(ResourceType.TemperaGrassa).available(1),
 			});
 		});
 
-		setSkillInfoText = ((text)=>{
-			this.setState({tooltipContent: text});
-		});
-
-		this.onWaitTimeChange = ((e)=>{
+		this.onWaitTimeChange = (e: ValueChangeEvent) => {
 			if (!e || !e.target) return;
 			this.setState({waitTime: e.target.value});
-		});
+		};
 
-		this.onWaitTimeSubmit = ((e)=>{
+		this.onWaitTimeSubmit = (e: FormEvent<HTMLFormElement>) => {
 			let waitTime = parseFloat(this.state.waitTime);
 			if (!isNaN(waitTime)) {
 				if (this.state.waitSince === WaitSince.Now) {
@@ -366,14 +339,14 @@ export class SkillsWindow extends React.Component {
 				controller.autoSave();
 			}
 			e.preventDefault();
-		});
+		};
 
-		this.onWaitUntilChange = (e=>{
+		this.onWaitUntilChange = (e: ValueChangeEvent) => {
 			if (!e || !e.target) return;
 			this.setState({waitUntil: e.target.value});
-		});
+		};
 
-		this.onWaitUntilSubmit = (e=>{
+		this.onWaitUntilSubmit = (e: FormEvent<HTMLFormElement>) => {
 			let targetTime = parseTime(this.state.waitUntil);
 			if (!isNaN(targetTime)) {
 				let currentTime = controller.game.getDisplayTime();
@@ -386,192 +359,37 @@ export class SkillsWindow extends React.Component {
 				}
 			}
 			e.preventDefault();
-		});
+		};
 
-		this.onWaitSinceChange = (e=>{
+		this.onWaitSinceChange = (e: ValueChangeEvent) => {
 			this.setState({waitSince: e.target.value});
-		});
+		};
 
-		this.onRemoveTrailingIdleTime = (()=>{
+		this.onRemoveTrailingIdleTime = (() => {
 			controller.removeTrailingIdleTime();
 		});
 
-		this.onWaitTillNextMpOrLucidTick = (()=>{
+		this.onWaitTillNextMpOrLucidTick = (() => {
 			controller.waitTillNextMpOrLucidTick();
 		});
 
 		this.state = {
-			statusList: undefined,
-			paradoxInfo: undefined,
-			tooltipContent: "",
+			statusList: [],
 			waitTime: "1",
 			waitSince: WaitSince.Now,
-			waitUntil: "0:00"
+			waitUntil: "0:00",
 		}
-	}
-	componentDidMount() {
-		this.setState({
-			statusList: controller.game.displayedSkills.map(sn=>{
-				return controller.getSkillInfo({game: controller.getDisplayedGame(), skillName: sn});
-			}),
-			paradoxInfo: undefined,
-			retraceInfo: undefined,
-			subtractiveReady: controller.game.resources.get(ResourceType.SubtractivePalette).available(1),
-			aetherhuesStacks: controller.game.resources.get(ResourceType.Aetherhues).availableAmount(),
-			creatureReady: controller.game.resources.get(ResourceType.CreatureCanvas).available(1),
-			depictions: controller.game.resources.get(ResourceType.Depictions).availableAmount(),
-			portrait: controller.game.resources.get(ResourceType.Portrait).availableAmount(),
-			landscapeReady: controller.game.resources.get(ResourceType.LandscapeCanvas).available(1),
-			hammerReady: controller.game.resources.get(ResourceType.WeaponCanvas).available(1),
-			hammerStacks: controller.game.resources.get(ResourceType.HammerTime).availableAmount(),
-			hasTemperaCoat: controller.game.resources.get(ResourceType.TemperaCoat).available(1),
-			hasTemperaGrassa: controller.game.resources.get(ResourceType.TemperaGrassa).available(1),
-		});
 	}
 
 	render() {
 		let skillButtons = [];
-		let displayedSkills = controller.game.displayedSkills;
-		for (let i = 0; i < displayedSkills.length; i++) {
-			let skillName = displayedSkills[i];
-			let info = this.state.statusList ? this.state.statusList[i] : undefined;
-			let level = controller.game.config.level;
-			// hacky since i'm too lazy to mess with getSkillAvailabilityStatus for replacement buttons
-			let highlight = false;
-
-			// picto filler
-			if (skillName === SkillName.FireInRed) {
-				highlight = this.state.aetherhuesStacks > 0 && !this.state.subtractiveReady;
-				if (this.state.aetherhuesStacks === 1) {
-					skillName = SkillName.AeroInGreen;
-				} else if (this.state.aetherhuesStacks === 2) {
-					skillName = SkillName.WaterInBlue;
-				}
-			} else if (skillName === SkillName.Fire2InRed) {
-				highlight = this.state.aetherhuesStacks > 0 && !this.state.subtractiveReady;
-				if (this.state.aetherhuesStacks === 1) {
-					skillName = SkillName.Aero2InGreen;
-				} else if (this.state.aetherhuesStacks === 2) {
-					skillName = SkillName.Water2InBlue;
-				}
-			}
-
-			// picto subtractive
-			if (skillName === SkillName.BlizzardInCyan) {
-				highlight = this.state.subtractiveReady;
-				if (this.state.aetherhuesStacks === 1) {
-					skillName = SkillName.StoneInYellow;
-				} else if (this.state.aetherhuesStacks === 2) {
-					skillName = SkillName.ThunderInMagenta;
-				}
-			} else if (skillName === SkillName.Blizzard2InCyan) {
-				highlight = this.state.subtractiveReady;
-				if (this.state.aetherhuesStacks === 1) {
-					skillName = SkillName.Stone2InYellow;
-				} else if (this.state.aetherhuesStacks === 2) {
-					skillName = SkillName.Thunder2InMagenta;
-				}
-			}
-
-			// picto creature muse + motif
-			if (skillName === SkillName.CreatureMotif && !this.state.creatureReady) {
-				switch (this.state.depictions) {
-					case 0:
-						skillName = SkillName.PomMotif;
-						break;
-					case 1:
-						skillName = SkillName.WingMotif;
-						break;
-					case 2:
-						skillName = SkillName.ClawMotif;
-						break;
-					case 3:
-						skillName = SkillName.MawMotif;
-						break;
-				}
-			}
-
-			if (skillName === SkillName.LivingMuse) {
-				if (this.state.creatureReady) {
-					highlight = true;
-				}
-				switch (this.state.depictions) {
-					case 0:
-						skillName = SkillName.PomMuse;
-						break;
-					case 1:
-						skillName = SkillName.WingedMuse;
-						break;
-					case 2:
-						skillName = SkillName.ClawedMuse;
-						break;
-					case 3:
-						skillName = SkillName.FangedMuse;
-						break;
-				}
-			}
-
-			if (skillName === SkillName.MogOfTheAges) {
-				if (this.state.portrait === 2) {
-					skillName = SkillName.RetributionOfTheMadeen;
-				}
-			}
-
-			if (skillName === SkillName.LandscapeMotif && !this.state.landscapeReady) {
-				skillName = SkillName.StarrySkyMotif;
-			}
-
-			if (skillName === SkillName.ScenicMuse) {
-				if (this.state.landscapeReady) {
-					highlight = true;
-					skillName = SkillName.StarryMuse;
-				}
-			}
-
-			// hammer and hammer accessories
-
-			if (skillName === SkillName.WeaponMotif) {
-				skillName = SkillName.HammerMotif;
-			}
-
-			if (skillName === SkillName.SteelMuse) {
-				if (this.state.hammerReady) {
-					highlight = true;
-					skillName = SkillName.StrikingMuse;
-				}
-			}
-
-			if (skillName === SkillName.HammerStamp) {
-				// TODO handle combo drop
-				if (Traits.hasUnlocked(TraitName.EnhancedPictomancyII, level)) {
-					if (this.state.hammerStacks === 2) {
-						skillName = SkillName.HammerBrush;
-					} else if (this.state.hammerStacks === 1) {
-						skillName = SkillName.PolishingHammer;
-					}
-				}
-			}
-
-			// temperas coat, grassa, and corresponding "pop"s
-			if (skillName === SkillName.TemperaCoat) {
-				// replace coat with pop (grassa is a separate button)
-				if (this.state.hasTemperaCoat) {
-					info = controller.getSkillInfo({game: controller.getDisplayedGame(), skillName: SkillName.TemperaCoatPop});
-					skillName = SkillName.TemperaCoatPop;
-				}
-			}
-
-			if (skillName === SkillName.TemperaGrassa) {
-				// replace grassa with pop
-				if (this.state.hasTemperaGrassa) {
-					info = controller.getSkillInfo({game: controller.getDisplayedGame(), skillName: SkillName.TemperaGrassaPop});
-					skillName = SkillName.TemperaGrassaPop;
-				}
-			}
+		for (let i = 0; i < this.state.statusList.length; i++) {
+			let skillName = this.state.statusList[i].skillName;
+			let info = this.state.statusList[i];
 
 			let btn = <SkillButton
 				key={i}
-				highlight={highlight || (info && info.highlight)}
+				highlight={info ? info.highlight : false}
 				skillName={skillName}
 				ready={info ? info.status===SkillReadyStatus.Ready : false}
 				cdProgress={info ? 1 - info.timeTillNextStackReady / info.cdRecastTime : 1}

@@ -4,17 +4,18 @@ import {
 	ReplayMode,
 	setCachedValue,
 	ShellInfo,
+	ShellJob,
 	ShellVersion,
 	TickMode
 } from "./Common";
 import {GameState} from "../Game/GameState";
+import {getConditionalReplacement} from "../Game/Skills";
+import {BLMState} from "../Game/Jobs/BLM";
+import {PCTState} from "../Game/Jobs/PCT";
 import {Debug, LevelSync, ProcMode, ResourceType, SkillName, SkillReadyStatus, WarningType} from "../Game/Common";
 import {DEFAULT_CONFIG, GameConfig} from "../Game/GameConfig"
-// @ts-ignore
 import {updateStatusDisplay} from "../Components/StatusDisplay";
-// @ts-ignore
 import {updateSkillButtons} from "../Components/Skills";
-// @ts-ignore
 import {updateConfigDisplay} from "../Components/PlaybackControl"
 import {setHistorical, setRealTime} from "../Components/Main";
 import {ElemType, MAX_TIMELINE_SLOTS, Timeline} from "./Timeline"
@@ -36,6 +37,13 @@ import {
 } from "./DamageStatistics";
 
 type Fixme = any;
+
+const newGameState = (config: GameConfig) => {
+	if (ShellInfo.job === ShellJob.PCT) {
+		return new PCTState(config);
+	}
+	return new BLMState(config);
+}
 
 class Controller {
 	timeScale;
@@ -75,7 +83,7 @@ class Controller {
 
 	#bAddingLine: boolean = false;
 	#bInterrupted: boolean = false;
-	#bCalculatingHistoricalState: boolean = false;
+	#bInSandbox: boolean = false;
 
 	#skipViewUpdates: boolean = false;
 	displayingUpToDateGameState = true;
@@ -94,7 +102,7 @@ class Controller {
 		this.#presetLinesManager = new PresetLinesManager();
 
 		this.gameConfig = new GameConfig(DEFAULT_CONFIG);
-		this.game = new GameState(this.gameConfig);
+		this.game = newGameState(this.gameConfig);
 
 		this.record = new Record();
 		this.record.config = this.gameConfig;
@@ -137,7 +145,7 @@ class Controller {
 
 	#sandboxEnvironment(fn: ()=>void) {
 		this.displayingUpToDateGameState = false;
-		this.#bCalculatingHistoricalState = true;
+		this.#bInSandbox = true;
 		let tmpGame = this.game;
 		let tmpRecord = this.record;
 		let tmpLastDamageApplicationTime = this.#lastDamageApplicationTime;
@@ -146,7 +154,7 @@ class Controller {
 		fn();
 
 		//============v pop stashed states v============
-		this.#bCalculatingHistoricalState = false;
+		this.#bInSandbox = false;
 		this.savedHistoricalGame = this.game;
 		this.savedHistoricalRecord = this.record;
 		this.game = tmpGame;
@@ -175,7 +183,7 @@ class Controller {
 
 			// create environment
 			let cfg = inRecord.config ?? this.gameConfig;
-			this.game = new GameState(cfg);
+			this.game = newGameState(cfg);
 			this.record = new Record();
 			this.record.config = cfg;
 			this.#lastDamageApplicationTime = -cfg.countdown;
@@ -212,7 +220,7 @@ class Controller {
 
 		this.#sandboxEnvironment(()=>{
 			let tmpRecord = this.record;
-			this.game = new GameState(this.gameConfig);
+			this.game = newGameState(this.gameConfig);
 			this.record = new Record();
 			this.record.config = this.gameConfig;
 			this.#lastDamageApplicationTime = -this.gameConfig.countdown;
@@ -270,7 +278,7 @@ class Controller {
 
 	#requestRestart() {
 		this.lastAttemptedSkill = ""
-		this.game = new GameState(this.gameConfig);
+		this.game = newGameState(this.gameConfig);
 		this.#playPause({shouldLoop: false});
 		this.timeline.reset();
 		this.record.unselectAll();
@@ -498,7 +506,7 @@ class Controller {
 	}
 
 	reportWarning(type: WarningType) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			this.timeline.addElement({
 				type: ElemType.WarningMark,
 				warningType: type,
@@ -517,7 +525,7 @@ class Controller {
 			if (m.source===PotencyModifierType.POT) pot = true;
 		});
 
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			let sourceDesc = "{skill}@" + p.sourceTime.toFixed(3);
 			if (p.description.length > 0) sourceDesc += " " + p.description;
 			this.timeline.addElement({
@@ -544,7 +552,7 @@ class Controller {
 	}
 
 	reportLucidTick(time: number, sourceDesc: string) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			this.timeline.addElement({
 				type: ElemType.LucidMark,
 				time: time,
@@ -555,7 +563,7 @@ class Controller {
 	}
 
 	reportManaTick(time: number, sourceDesc: string) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			this.timeline.addElement({
 				type: ElemType.MPTickMark,
 				time: time,
@@ -566,14 +574,14 @@ class Controller {
 	}
 
 	reportDotTick(rawTime: number) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			this.#thunderDotTickTimes.push(rawTime)
 			this.updateStats();
 		}
 	}
 
 	reportDotStart(displayTime: number) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			let len = this.#thunderDoTCoverageTimes.length;
 			console.assert(len === 0 || this.#thunderDoTCoverageTimes[len-1].tEndDisplay!==undefined);
 			this.#thunderDoTCoverageTimes.push({
@@ -584,7 +592,7 @@ class Controller {
 	}
 
 	reportDotDrop(displayTime: number) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			let len = this.#thunderDoTCoverageTimes.length;
 			console.assert(len > 0 && this.#thunderDoTCoverageTimes[len-1].tEndDisplay===undefined);
 			this.#thunderDoTCoverageTimes[len-1].tEndDisplay = displayTime;
@@ -593,26 +601,40 @@ class Controller {
 
 	updateStatusDisplay(game: GameState) {
 		// resources
-		let eno = game.resources.get(ResourceType.Enochian);
+		const isBLM = ShellInfo.job === ShellJob.BLM;
 		let enoCountdown: number;
-		if (eno.available(1) && !eno.pendingChange) {
-			enoCountdown = 15;
+		let polyglotCountdown: number;
+		let fireStacks: number;
+		let iceStacks: number;
+		if (isBLM) {
+			let eno = game.resources.get(ResourceType.Enochian);
+			if (eno.available(1) && !eno.pendingChange) {
+				enoCountdown = 15;
+			} else {
+				enoCountdown = game.resources.timeTillReady(ResourceType.Enochian);
+			}
+			polyglotCountdown = eno.available(1) ? game.resources.timeTillReady(ResourceType.Polyglot) : 30;
+			fireStacks = (game as BLMState).getFireStacks();
+			iceStacks = (game as BLMState).getIceStacks();
 		} else {
-			enoCountdown = game.resources.timeTillReady(ResourceType.Enochian);
+			enoCountdown = 0;
+			polyglotCountdown = 0;
+			fireStacks = 0;
+			iceStacks = 0;
 		}
 
 		let resourcesData = {
 			mana: game.resources.get(ResourceType.Mana).availableAmount(),
 			timeTillNextManaTick: game.resources.timeTillReady(ResourceType.Mana),
 			enochianCountdown: enoCountdown,
-			astralFire: game.getFireStacks(),
-			umbralIce: game.getIceStacks(),
+			astralFire: fireStacks,
+			umbralIce: iceStacks,
 			umbralHearts: game.resources.get(ResourceType.UmbralHeart).availableAmount(),
 			paradox: game.resources.get(ResourceType.Paradox).availableAmount(),
 			astralSoul: game.resources.get(ResourceType.AstralSoul).availableAmount(),
-			polyglotCountdown: eno.available(1) ? game.resources.timeTillReady(ResourceType.Polyglot) : 30,
+			polyglotCountdown: polyglotCountdown,
 			polyglotStacks: game.resources.get(ResourceType.Polyglot).availableAmount(),
-
+			// TODO split up
 			portrait: game.resources.get(ResourceType.Portrait).availableAmount(),
 			depictions: game.resources.get(ResourceType.Depictions).availableAmount(),
 			creatureCanvas: game.resources.get(ResourceType.CreatureCanvas).availableAmount(),
@@ -652,12 +674,8 @@ class Controller {
 			firestarterCountdown: game.resources.timeTillReady(ResourceType.Firestarter),
 			thunderheadCountdown: game.resources.timeTillReady(ResourceType.Thunderhead),
 			manawardCountdown: game.resources.timeTillReady(ResourceType.Manaward),
-			swiftcastCountdown: game.resources.timeTillReady(ResourceType.Swiftcast),
-			lucidDreamingCountdown: game.resources.timeTillReady(ResourceType.LucidDreaming),
-			surecastCountdown: game.resources.timeTillReady(ResourceType.Surecast),
-			tinctureCountdown: game.resources.timeTillReady(ResourceType.Tincture),
-			sprintCountdown: game.resources.timeTillReady(ResourceType.Sprint),
 
+			// TODO split up
 			aetherhuesCountdown: game.resources.timeTillReady(ResourceType.Aetherhues),
 			aetherhuesStacks: game.resources.get(ResourceType.Aetherhues).availableAmount(),
 			monochromeTones: game.resources.get(ResourceType.MonochromeTones).availableAmount(),
@@ -675,6 +693,12 @@ class Controller {
 			temperaCoatCountdown: game.resources.timeTillReady(ResourceType.TemperaCoat),
 			temperaGrassaCountdown: game.resources.timeTillReady(ResourceType.TemperaGrassa),
 			smudgeCountdown: game.resources.timeTillReady(ResourceType.Smudge),
+			
+			swiftcastCountdown: game.resources.timeTillReady(ResourceType.Swiftcast),
+			lucidDreamingCountdown: game.resources.timeTillReady(ResourceType.LucidDreaming),
+			surecastCountdown: game.resources.timeTillReady(ResourceType.Surecast),
+			tinctureCountdown: game.resources.timeTillReady(ResourceType.Tincture),
+			sprintCountdown: game.resources.timeTillReady(ResourceType.Sprint),
 		};
 		if (typeof updateStatusDisplay !== "undefined") {
 			updateStatusDisplay({
@@ -694,21 +718,21 @@ class Controller {
 		updateSkillSequencePresetsView();
 		refreshTimelineEditor();
 
-		this.timeline.updateElem({
-			type: ElemType.s_Cursor,
-			time: this.game.time,
-			displayTime: this.game.getDisplayTime()
-		});
+		if (!this.#bInSandbox) {
+			this.timeline.updateElem({
+				type: ElemType.s_Cursor,
+				time: this.game.time,
+				displayTime: this.game.getDisplayTime()
+			});
+		}
 		this.timeline.drawElements();
 	}
 
 	updateSkillButtons(game: GameState) {
-		let paradoxReady = game.resources.get(ResourceType.Paradox).availableAmount() > 0;
-		let retraceReady = game.resources.get(ResourceType.LeyLines).availableAmountIncludingDisabled() > 0;
-
-		updateSkillButtons(this.game.displayedSkills.map((skillName: SkillName) => {
-			return game.getSkillAvailabilityStatus(skillName);
-		}), paradoxReady, retraceReady);
+		updateSkillButtons(
+			this.game.displayedSkills.getCurrentSkillNames(this.game)
+				.map((skillName: SkillName) => game.getSkillAvailabilityStatus(skillName))
+		);
 	}
 
 	#requestTick(props: {
@@ -804,19 +828,7 @@ class Controller {
 
 		if (bWaitFirst) {
 			this.#requestTick({deltaTime: status.timeTillAvailable, separateNode: false});
-
-			if ((skillName === SkillName.Fire || skillName === SkillName.Blizzard)
-				&& this.game.resources.get(ResourceType.Paradox).available(1))
-			{
-				// automatically turn F1/B1 into paradox if conditions are met
-				skillName = SkillName.Paradox;
-			} else if (skillName === SkillName.Paradox
-				&& !this.game.resources.get(ResourceType.Paradox).available(1))
-			{
-				// and vice versa
-				if (this.game.getFireStacks() > 0) skillName = SkillName.Fire;
-				else if (this.game.getIceStacks() > 0) skillName = SkillName.Blizzard;
-			}
+			skillName = getConditionalReplacement(skillName, this.game);
 			status = this.game.getSkillAvailabilityStatus(skillName);
 			this.lastAttemptedSkill = "";
 		}
@@ -844,10 +856,10 @@ class Controller {
 			node.tmp_startLockTime = this.game.time;
 			node.tmp_endLockTime = this.game.time + lockDuration;
 
-			if (!this.#bCalculatingHistoricalState) { // this block is run when NOT viewing historical state (aka run when receiving input)
+			if (!this.#bInSandbox) { // this block is run when NOT viewing historical state (aka run when receiving input)
 				let newStatus = this.game.getSkillAvailabilityStatus(skillName); // refresh to get re-captured recast time
-				let skillInfo = this.game.skillsList.get(skillName).info;
-				let isGCD = skillInfo.cdName === ResourceType.cd_GCD;
+				let skill = this.game.skillsList.get(skillName);
+				let isGCD = skill.cdName === ResourceType.cd_GCD;
 				let isSpellCast = status.castTime > 0 && !status.instantCast;
 				let snapshotTime = isSpellCast ? status.castTime - GameConfig.getSlidecastWindow(status.castTime) : 0;
 				this.timeline.addElement({
@@ -968,7 +980,13 @@ class Controller {
 			else if (itr.type === ActionType.Skill) {
 
 				let waitFirst = currentReplayMode === ReplayMode.SkillSequence || currentReplayMode === ReplayMode.Edited; // true for tight replay; false for exact replay
-				let status = this.#useSkill(itr.skillName as SkillName, waitFirst, TickMode.Manual);
+				let skillName = itr.skillName as SkillName;
+				if (props.replayMode === ReplayMode.SkillSequence) {
+					// auto-replace as much as possible
+					let replacedSkill = this.game.skillsList.getAutoReplaced(skillName, this.gameConfig.level);
+					skillName = replacedSkill.name;
+				}
+				let status = this.#useSkill(skillName, waitFirst, TickMode.Manual);
 
 				let bEditedTimelineShouldWaitAfterSkill = currentReplayMode === ReplayMode.Edited && (itr.next && itr.next.type === ActionType.Wait);
 				if (currentReplayMode === ReplayMode.Exact || bEditedTimelineShouldWaitAfterSkill) {
@@ -1163,7 +1181,7 @@ class Controller {
 	}
 
 	reportInterruption(props: {failNode: ActionNode}) {
-		if (!this.#bCalculatingHistoricalState) {
+		if (!this.#bInSandbox) {
 			window.alert("cast failed! Resources for " + props.failNode.skillName + " are no longer available");
 			console.warn("failed: " + props.failNode.skillName);
 		}

@@ -9,6 +9,10 @@ import {
 	SelectedStatisticsData
 } from "../Components/DamageStatistics";
 import {PotencyModifier, PotencyModifierType} from "../Game/Potency";
+import type {BLMState} from "../Game/Jobs/BLM";
+import {ShellInfo, ShellJob} from "./Common";
+
+// TODO autogenerate everything here
 
 const AFUISkills = new Set<SkillName>([
 	SkillName.Blizzard,
@@ -25,6 +29,41 @@ const AFUISkills = new Set<SkillName>([
 	SkillName.HighFire2,
 	SkillName.HighBlizzard2,
 	SkillName.FlareStar,
+]);
+
+const enoSkills = new Set<SkillName>([
+	SkillName.Foul,
+	SkillName.Xenoglossy,
+	SkillName.Paradox
+]);
+
+const abilities = new Set<SkillName>([
+	SkillName.Transpose,
+	SkillName.Manaward,
+	SkillName.Manafont,
+	SkillName.LeyLines,
+	SkillName.BetweenTheLines,
+	SkillName.AetherialManipulation,
+	SkillName.Triplecast,
+	SkillName.UmbralSoul,
+	SkillName.Amplifier,
+	SkillName.Retrace,
+
+	SkillName.StrikingMuse,
+	SkillName.StarryMuse,
+	SkillName.TemperaCoat,
+	SkillName.TemperaCoatPop,
+	SkillName.TemperaGrassa,
+	SkillName.TemperaGrassaPop,
+	SkillName.Smudge,
+	SkillName.SubtractivePalette,
+	
+	SkillName.Addle,
+	SkillName.Swiftcast,
+	SkillName.LucidDreaming,
+	SkillName.Surecast,
+	SkillName.Tincture,
+	SkillName.Sprint,
 ]);
 
 const pictoDamageSkills = new Set<SkillName>([
@@ -64,41 +103,6 @@ const pictoMotifs = new Set<SkillName>([
 	SkillName.ClawMotif,
 	SkillName.MawMotif,
 	SkillName.StarrySkyMotif,
-]);
-
-const enoSkills = new Set<SkillName>([
-	SkillName.Foul,
-	SkillName.Xenoglossy,
-	SkillName.Paradox
-]);
-
-const abilities = new Set<SkillName>([
-	SkillName.Transpose,
-	SkillName.Manaward,
-	SkillName.Manafont,
-	SkillName.LeyLines,
-	SkillName.BetweenTheLines,
-	SkillName.AetherialManipulation,
-	SkillName.Triplecast,
-	SkillName.UmbralSoul,
-	SkillName.Amplifier,
-	SkillName.Retrace,
-
-	SkillName.StrikingMuse,
-	SkillName.StarryMuse,
-	SkillName.TemperaCoat,
-	SkillName.TemperaCoatPop,
-	SkillName.TemperaGrassa,
-	SkillName.TemperaGrassaPop,
-	SkillName.Smudge,
-	SkillName.SubtractivePalette,
-
-	SkillName.Addle,
-	SkillName.Swiftcast,
-	SkillName.LucidDreaming,
-	SkillName.Surecast,
-	SkillName.Tincture,
-	SkillName.Sprint
 ]);
 
 // source of truth
@@ -219,8 +223,8 @@ function expandNode(node: ActionNode) : ExpandedNode {
 		calculationModifiers: []
 	}
 	if (node.type === ActionType.Skill && node.skillName) {
-		if (pictoDamageSkills.has(node.skillName)) {
-			console.assert(node.getPotencies().length > 0);
+		if (AFUISkills.has(node.skillName) || pictoDamageSkills.has(node.skillName)) {
+			console.assert(node.getPotencies().length > 0, "no potencies for " + node.skillName);
 			// use the one that's not enochian or pot (then must be one of af123, ui123)
 			let mainPotency = node.getPotencies()[0];
 			res.basePotency = mainPotency.base;
@@ -229,6 +233,10 @@ function expandNode(node: ActionNode) : ExpandedNode {
 				if (tag !== PotencyModifierType.ENO && tag !== PotencyModifierType.POT) {
 					res.displayedModifiers.push(tag);
 					res.calculationModifiers.push(mainPotency.modifiers[i]);
+					// TODO check why blm does a break; here
+					if (ShellInfo.job === ShellJob.BLM) {
+						break;
+					}
 				}
 			}
 		} else if (enoSkills.has(node.skillName)) {
@@ -246,6 +254,7 @@ function expandNode(node: ActionNode) : ExpandedNode {
 			}
 		} else if (abilities.has(node.skillName) || pictoMotifs.has(node.skillName)) {
 		} else {
+			console.assert(isThunderNode(node))
 			res.basePotency = node.getPotencies()[0].base;
 		}
 		return res;
@@ -340,7 +349,7 @@ export function calculateSelectedStats(props: {
 			const checked = getSkillOrDotInclude(node.skillName);
 			// gcd count
 			let skillInfo = ctl.game.skillsList.get(node.skillName);
-			if (skillInfo.info.cdName === ResourceType.cd_GCD && checked) {
+			if (skillInfo.cdName === ResourceType.cd_GCD && checked) {
 				if (node.hitBoss(bossIsUntargetable)) selected.gcdSkills.applied++;
 				else if (!node.resolved()) selected.gcdSkills.pending++;
 			}
@@ -405,7 +414,7 @@ export function calculateDamageStats(props: {
 
 			// gcd count
 			let skillInfo = ctl.game.skillsList.get(node.skillName);
-			if (skillInfo.info.cdName === ResourceType.cd_GCD && checked) {
+			if (skillInfo.cdName === ResourceType.cd_GCD && checked) {
 				if (node.hitBoss(bossIsUntargetable)) {
 					gcdSkills.applied++;
 				} else if (!node.resolved()) {
@@ -507,10 +516,11 @@ export function calculateDamageStats(props: {
 	});
 
 	if (lastThunder) {
+		console.assert(ctl.game.job === ShellJob.BLM, "thunder table should be unique to BLM")
 		// last Thunder so far
 		let mainP = (lastThunder as ActionNode).getPotencies()[0];
 		console.assert(mainP.hasResolved());
-		let lastDotDropTime = (mainP.applicationTime as number) + 30;
+		let lastDotDropTime = (mainP.applicationTime as number) + (ctl.game as BLMState).getThunderDotDuration();
 		let gap = getTargetableDurationBetween(lastDotDropTime, ctl.game.getDisplayTime());
 
 		let timeSinceLastDoTDropped = ctl.game.getDisplayTime() - lastDotDropTime;

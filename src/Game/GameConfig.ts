@@ -1,12 +1,47 @@
-import {Debug, SkillName, ProcMode, LevelSync, FIXED_BASE_CASTER_TAX} from "./Common";
-import {ResourceOverride} from "./Resources";
-import {ShellInfo, ShellVersion} from "../Controller/Common";
+import {Debug, SkillName, ProcMode, LevelSync, ResourceType, FIXED_BASE_CASTER_TAX} from "./Common";
+import {ResourceOverride, ResourceOverrideData} from "./Resources";
+import {ShellInfo, ShellJob, ShellVersion} from "../Controller/Common";
 import {XIVMath} from "./XIVMath";
 
-export const DEFAULT_CONFIG = {
-	// 7.05 2.5 GCD bis https://xivgear.app/?page=sl%7C4c102326-839a-43c8-84ae-11ffdb6ef4a2
-	level: LevelSync.lvl100,
+export type ConfigData = {
+	shellVersion: ShellVersion,
+	level: LevelSync,
+	spellSpeed: number,
+	criticalHit: number,
+	directHit: number,
+	determination: number,
+	countdown: number,
+	randomSeed: string,
+	fps: number,
+	gcdSkillCorrection: number,
+	animationLock: number,
+	timeTillFirstManaTick: number,
+	procMode: ProcMode,
+	initialResourceOverrides: ResourceOverrideData[]
+}
+
+const DEFAULT_BLM_CONFIG: ConfigData = {
 	shellVersion: ShellInfo.version,
+	level: LevelSync.lvl100,
+	// 2.37 GCD
+	spellSpeed: 1532,
+	criticalHit: 420,
+	directHit: 420,
+	determination: 420,
+	countdown: 5,
+	randomSeed: "sup",
+	fps: 60,
+	gcdSkillCorrection: 0,
+	animationLock: 0.7,
+	timeTillFirstManaTick: 1.2,
+	procMode: ProcMode.Never,
+	initialResourceOverrides: []
+};
+
+const DEFAULT_PCT_CONFIG: ConfigData = {
+	shellVersion: ShellInfo.version,
+	level: LevelSync.lvl100,
+	// 7.05 2.5 GCD bis https://xivgear.app/?page=sl%7C4c102326-839a-43c8-84ae-11ffdb6ef4a2
 	spellSpeed: 420,
 	criticalHit: 3140,
 	directHit: 1993,
@@ -20,6 +55,15 @@ export const DEFAULT_CONFIG = {
 	procMode: ProcMode.Never,
 	initialResourceOverrides: []
 };
+
+export const DEFAULT_CONFIG: ConfigData = {
+	[ShellJob.BLM]: DEFAULT_BLM_CONFIG,
+	[ShellJob.PCT]: DEFAULT_PCT_CONFIG,
+}[ShellInfo.job];
+
+export type SerializedConfig = ConfigData & {
+	casterTax: number, // still want this bc don't want to break cached timelines
+}
 
 export class GameConfig {
 	readonly shellVersion = ShellInfo.version;
@@ -52,7 +96,7 @@ export class GameConfig {
 		animationLock: number,
 		timeTillFirstManaTick: number,
 		procMode: ProcMode,
-		initialResourceOverrides: any[],
+		initialResourceOverrides: (ResourceOverrideData & {enabled?: boolean})[],
 		casterTax?: number, // legacy
 	}) {
 		this.shellVersion = props.shellVersion;
@@ -69,7 +113,7 @@ export class GameConfig {
 		this.timeTillFirstManaTick = props.timeTillFirstManaTick;
 		this.procMode = props.procMode;
 		this.initialResourceOverrides = props.initialResourceOverrides.map(obj=>{
-			if (obj.effectOrTimerEnablled === undefined) {
+			if (obj.effectOrTimerEnabled === undefined) {
 				// backward compatibility:
 				if (obj.enabled === undefined) obj.effectOrTimerEnabled = true;
 				else obj.effectOrTimerEnabled = obj.enabled;
@@ -80,48 +124,18 @@ export class GameConfig {
 		this.legacy_casterTax = props?.casterTax ?? 0;
 	}
 
-	equals(other : GameConfig) {
-		let sortFn = (a: ResourceOverride, b: ResourceOverride)=>{
-			return a.type < b.type ? -1 : 1;
-		};
-		let thisSortedOverrides = this.initialResourceOverrides.sort(sortFn);
-		let otherSortedOverrides = other.initialResourceOverrides.sort(sortFn);
-		if (thisSortedOverrides.length === otherSortedOverrides.length) {
-			for (let i = 0; i < thisSortedOverrides.length; i++) {
-				if (!thisSortedOverrides[i].equals(otherSortedOverrides[i])) {
-					return false;
-				}
-			}
-			return this.shellVersion === other.shellVersion &&
-				this.level === other.level &&
-				this.spellSpeed === other.spellSpeed &&
-				this.criticalHit === other.criticalHit &&
-				this.directHit === other.directHit &&
-				this.determination === other.determination &&
-				this.countdown === other.countdown &&
-				this.randomSeed === other.randomSeed &&
-				this.fps === other.fps &&
-				this.gcdSkillCorrection === other.gcdSkillCorrection &&
-				this.animationLock === other.animationLock &&
-				this.timeTillFirstManaTick === other.timeTillFirstManaTick &&
-				this.procMode === other.procMode
-		} else {
-			return false;
-		}
-	}
-
 	adjustedDoTPotency(inPotency : number) {
 		return XIVMath.dotPotency(this.level, this.spellSpeed, inPotency);
 	}
 
 	// returns GCD before FPS tax
-	adjustedGCD(hasLL: boolean, inspired: boolean, recast?: number) {
-		return XIVMath.preTaxGcd(this.level, this.spellSpeed, hasLL, inspired, recast);
+	adjustedGCD(baseGCD: number = 2.5, speedBuff?: ResourceType) {
+		return XIVMath.preTaxGcd(this.level, this.spellSpeed, baseGCD, speedBuff);
 	}
 
 	// returns cast time before FPS and caster tax
-	adjustedCastTime(inCastTime : number, hasLL: boolean, inspired: boolean) {
-		return XIVMath.preTaxCastTime(this.level, this.spellSpeed, inCastTime, hasLL, inspired);
+	adjustedCastTime(inCastTime: number, speedBuff?: ResourceType) {
+		return XIVMath.preTaxCastTime(this.level, this.spellSpeed, inCastTime, speedBuff);
 	}
 
 	getSkillAnimationLock(skillName : SkillName) : number {

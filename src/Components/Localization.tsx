@@ -1,6 +1,6 @@
 import React from "react";
 import {forceUpdateAll} from "./Main";
-import {SkillName, BuffType} from "../Game/Common";
+import {SkillName, BuffType, ResourceType} from "../Game/Common";
 import {ContentNode} from "./Common";
 import {MdLanguage} from "react-icons/md";
 import {getCurrentThemeColors} from "./ColorTheme";
@@ -158,7 +158,12 @@ const skillsJa = new Map<SkillName, string>([
 	[SkillName.Tincture, "薬"],
 	[SkillName.Paradox, "パラドックス"],
 	[SkillName.HighThunder, "ハイサンダー"],
-	[SkillName.Sprint, "スプリント"]
+	[SkillName.Retrace, "魔紋再設置"],
+	[SkillName.FlareStar, "フレアスター"],
+
+	// TODO picto localization
+
+	[SkillName.Sprint, "スプリント"],
 ]);
 
 export function localizeSkillName(text: SkillName) : string {
@@ -174,6 +179,7 @@ export function localizeSkillName(text: SkillName) : string {
 
 const buffsZh = new Map<BuffType, string>([
 	[BuffType.LeyLines, "黑魔纹"],
+	[BuffType.Hyperphantasia, "绘灵幻景"],
 	[BuffType.Tincture, "爆发药"],
 
 	[BuffType.ArcaneCircle, "神秘纹"],
@@ -200,7 +206,30 @@ const buffsZh = new Map<BuffType, string>([
 ]);
 
 const buffsJa = new Map<BuffType, string>([
-	// todo
+	[BuffType.LeyLines, "黒魔紋"],
+	[BuffType.Tincture, "薬"],
+
+	[BuffType.ArcaneCircle, "アルケインサークル"],
+	[BuffType.ArmysPaeon, "軍神のパイオン"],
+	[BuffType.BattleLitany, "バトルリタニー"],
+	[BuffType.BattleVoice, "バトルボイス"],
+	[BuffType.Brotherhood, "桃園結義"],
+	[BuffType.Card_TheBalance, "アーゼマの均衡"],
+	[BuffType.Card_TheSpear, "ハルオーネの槍"],
+	[BuffType.ChainStratagem, "連環計"],
+	[BuffType.Devilment, "攻めのタンゴ"],
+	[BuffType.Divination, "ディヴィネーション"],
+	[BuffType.Dokumori, "毒盛の術"],
+	[BuffType.Embolden, "エンボルデン"],
+	[BuffType.MagesBallad, "賢人のバラード"],
+	[BuffType.RadiantFinale1, "光神のフィナーレ1"],
+	[BuffType.RadiantFinale2, "光神のフィナーレ2"],
+	[BuffType.RadiantFinale3, "光神のフィナーレ3"],
+	[BuffType.SearingLight, "シアリングライト"],
+	[BuffType.StandardFinish, "スタンダードフィニッシュ"],
+	[BuffType.StarryMuse, "イマジンスカイ"],
+	[BuffType.TechnicalFinish, "テクニカルフィニッシュ"],
+	[BuffType.WanderersMinuet, "旅神のメヌエット"],
 ]);
 
 export function localizeBuffType(text: BuffType) : string {
@@ -209,6 +238,31 @@ export function localizeBuffType(text: BuffType) : string {
 		return buffsZh.get(text) ?? text;
 	} else if (currentLang === "ja") {
 		return buffsJa.get(text) ?? text;
+	} else {
+		return text;
+	}
+}
+
+const resourcesZh = new Map<ResourceType, string>([
+	[ResourceType.Aetherhues, "以太色调"],
+	[ResourceType.TemperaCoat, "坦培拉涂层"],
+	[ResourceType.Smudge, "速涂"],
+	[ResourceType.HammerTime, "重锤连击"],
+	[ResourceType.SubtractivePalette, "减色混合"],
+	[ResourceType.StarryMuse, "星空构想"],
+	[ResourceType.SubtractiveSpectrum, "减色混合预备"],
+	[ResourceType.Hyperphantasia, "绘灵幻景"],
+	[ResourceType.Inspiration, "绘画装置"],
+	[ResourceType.RainbowBright, "彩虹点滴效果提高"],
+	[ResourceType.Starstruck, "天星棱光预备"],
+	[ResourceType.TemperaGrassa, "油性坦培拉涂层"],
+	[ResourceType.MonochromeTones, "色调反转"],
+]);
+
+export function localizeResourceType(text: ResourceType): string {
+	const currentLang = getCurrentLanguage();
+	if (currentLang === "zh") {
+		return resourcesZh.get(text) ?? text;
 	} else {
 		return text;
 	}
