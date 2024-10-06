@@ -1,5 +1,11 @@
 [
     {
+        "date": "10/6/24",
+        "changes": [
+            "Show timestamp of error for invalid sequences in the timeline editor"
+        ]
+    },
+    {
         "date": "10/5/24",
         "changes": [
             "[cherry-pick] Use new tab-based layout",
@@ -12,15 +18,10 @@
     {
         "date": "9/25/24",
         "changes": [
-            "[cherry-pick] Add nicer font for stack numbers"
-        ]
-    },
-    {
-        "date": "9/25/24",
-        "changes": [
             "Fix Chinese translation of pop Tempera Coat/Grassa, and Aero II in Green",
             "Add stack for Living/Striking Muses",
-            "Fix missing Tempera Coat buff icon"
+            "Fix missing Tempera Coat buff icon",
+            "[cherry-pick] Add nicer font for stack numbers"
         ]
     },
     {
