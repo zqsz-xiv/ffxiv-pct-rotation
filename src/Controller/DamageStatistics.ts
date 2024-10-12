@@ -34,25 +34,6 @@ const enoSkills = new Set<SkillName>([
 	SkillName.Paradox
 ]);
 
-const abilities = new Set<SkillName>([
-	SkillName.Transpose,
-	SkillName.Manaward,
-	SkillName.Manafont,
-	SkillName.LeyLines,
-	SkillName.BetweenTheLines,
-	SkillName.AetherialManipulation,
-	SkillName.Triplecast,
-	SkillName.UmbralSoul,
-	SkillName.Amplifier,
-	SkillName.Retrace,
-	SkillName.Addle,
-	SkillName.Swiftcast,
-	SkillName.LucidDreaming,
-	SkillName.Surecast,
-	SkillName.Tincture,
-	SkillName.Sprint
-]);
-
 // source of truth
 const excludedFromStats = new Set<SkillName | "DoT">([]);
 
@@ -171,13 +152,15 @@ function expandNode(node: ActionNode) : ExpandedNode {
 		calculationModifiers: []
 	}
 	if (node.type === ActionType.Skill && node.skillName) {
-		if (AFUISkills.has(node.skillName)) {
-			console.assert(node.getPotencies().length > 0, "no potencies for " + node.skillName);
-			// use the one that's not enochian or pot (then must be one of af123, ui123)
-			let mainPotency = node.getPotencies()[0];
+		if (node.getPotencies().length === 0) {
+			// do nothing if the used ability does no damage
+		} else if (AFUISkills.has(node.skillName)) {
+			// for AF/UI skills, display the first modifier that's not enochian or pot
+			// (must be one of af123, ui123)
+			const mainPotency = node.getPotencies()[0];
 			res.basePotency = mainPotency.base;
-			for (let i = 0; i < mainPotency.modifiers.length; i++) {
-				let tag = mainPotency.modifiers[i].source;
+			for (const modifier of mainPotency.modifiers) {
+				const tag = modifier.source;
 				if (tag !== PotencyModifierType.ENO && tag !== PotencyModifierType.POT) {
 					res.displayedModifiers = [tag];
 					res.calculationModifiers = mainPotency.modifiers;
@@ -185,11 +168,10 @@ function expandNode(node: ActionNode) : ExpandedNode {
 				}
 			}
 		} else if (enoSkills.has(node.skillName)) {
-			console.assert(node.getPotencies().length > 0);
-			// use enochian if it has one. Otherwise empty.
-			let mainPotency = node.getPotencies()[0];
-			for (let i = 0; i < mainPotency.modifiers.length; i++) {
-				let tag = mainPotency.modifiers[i].source;
+			// for foul/xeno/para, display enochian modifier if it has one. Otherwise empty.
+			const mainPotency = node.getPotencies()[0];
+			for (const modifier of mainPotency.modifiers) {
+				const tag = modifier.source;
 				if (tag === PotencyModifierType.ENO) {
 					res.basePotency = mainPotency.base;
 					res.displayedModifiers = [tag];
@@ -197,10 +179,20 @@ function expandNode(node: ActionNode) : ExpandedNode {
 					break;
 				}
 			}
-		} else if (abilities.has(node.skillName)) {
-		} else {
-			console.assert(isThunderNode(node))
+		} else if (isThunderNode(node)) {
+			// thunder modifiers are handled separately
 			res.basePotency = node.getPotencies()[0].base;
+		} else {
+			// for non-BLM jobs, display all non-pot modifiers on all damaging skills
+			const mainPotency = node.getPotencies()[0];
+			res.basePotency = mainPotency.base;
+			for (const modifier of mainPotency.modifiers) {
+				const tag = modifier.source;
+				if (tag !== PotencyModifierType.POT) {
+					res.displayedModifiers.push(tag);
+					res.calculationModifiers.push(modifier);
+				}
+			}
 		}
 		return res;
 	} else {
