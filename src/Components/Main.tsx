@@ -289,7 +289,7 @@ export default class Main extends React.Component {
 						<SelectLanguage/>
 						<SelectColorTheme/>
 						<div>
-							<h3 style={{marginTop: 20, marginBottom: 6}}>Pictomancer Mage in the Shell</h3>
+							<h3 style={{marginTop: 20, marginBottom: 6}}>Pictomancer in the Shell</h3>
 							{localize({
 								en: <div style={{marginBottom: 16}}>Last updated: {changelog[0].date} (see <b>About this
 									tool/Changelog</b>)
