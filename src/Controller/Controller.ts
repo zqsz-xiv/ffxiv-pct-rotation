@@ -9,7 +9,7 @@ import {
 	TickMode
 } from "./Common";
 import {GameState} from "../Game/GameState";
-import {getAutoReplacedSkillName, getConditionalReplacement} from "../Game/Skills";
+import {getAutoReplacedSkillName, getConditionalReplacement, getNormalizedSkillName} from "../Game/Skills";
 import {BLMState} from "../Game/Jobs/BLM";
 import {PCTState} from "../Game/Jobs/PCT";
 import {Buff} from "../Game/Buffs";
@@ -369,7 +369,14 @@ class Controller {
 		for (let i = 0; i < content.actions.length; i++) {
 			let action = content.actions[i];
 			let node = new ActionNode(action.type);
-			node.skillName = action.skillName;
+			if (action.skillName) {
+				node.skillName = getNormalizedSkillName(action.skillName);
+				if (node.skillName === undefined) {
+					const msg = `Failed to load record- \nInvalid skill name: ${node.skillName}`;
+					window.alert(msg);
+					return;
+				}
+			}
 			node.buffName = action.buffName;
 			node.waitDuration = action.waitDuration;
 			line.addActionNode(node);
@@ -1105,9 +1112,15 @@ class Controller {
 		const buffRows = this.timeline.getBuffMarkers().map(
 			marker => {
 				const buff = new Buff(marker.description as BuffType);
+				let buffName: string = buff.info.name as string;
+				if (buffName === BuffType.Card_TheSpear) {
+					buffName = "The Spear";
+				} else if (buffName === BuffType.Card_TheBalance) {
+					buffName = "The Balance";
+				}
 				return [
 					marker.time,
-					buff.info.name,
+					buffName,
 					buff.info.job,
 					buff.info.name === BuffType.Dokumori ? "Debuff only" :
 					(buff.info.name === BuffType.TechnicalFinish ? "Buff only" : "")
@@ -1127,6 +1140,10 @@ class Controller {
 						SkillName.Addle as string,
 						SkillName.AetherialManipulation as string,
 						SkillName.Manaward as string,
+						SkillName.Surecast as string,
+
+						SkillName.TemperaGrassaPop as string,
+						SkillName.TemperaCoatPop as string,
 					].includes(row.action)
 					&& !row.action.includes("Toggle buff")
 				)
