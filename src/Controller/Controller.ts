@@ -1142,7 +1142,7 @@ class Controller {
 						BuffType.TechnicalFinish,
 					].includes(buff.info.name)) {
 						return "Buff Only";
-					} else if (buff.info.name === BuffType.Card_TheBalance) {
+					} else if (buff.info.name === BuffType.Card_TheSpear) {
 						return "Big";
 					}
 					return "";
