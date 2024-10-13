@@ -212,8 +212,7 @@ export class ResourceState {
 		let rsc = this.#map.get(rscType);
 		if (rsc) return rsc;
 		else {
-			// TODO uncomment this once job-specific blm frontend is separated out
-			// console.error(`could not find resource ${rscType}`);
+			console.error(`could not find resource ${rscType}`);
 			return new Resource(ResourceType.Never, 0, 0);
 		}
 	}

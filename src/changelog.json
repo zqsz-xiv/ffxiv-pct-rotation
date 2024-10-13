@@ -1,5 +1,20 @@
 [
 	{
+		"date": "10/10/24",
+		"changes": [
+			"Added ability to modify action selections made with shift-click",
+			"Fixed a bug where Between the Lines did not re-enable Ley Lines if toggled"
+		]
+	},
+	{
+		"date": "10/9/24",
+		"changes": [
+			"Page layout updates",
+			"Lots of underlying implementation updates but shouldn't affect behavior",
+			"A few Chinese localization updates"
+		]
+	},
+	{
 		"date": "9/26/24",
 		"changes": [
 			"Style update for remaining stacks",

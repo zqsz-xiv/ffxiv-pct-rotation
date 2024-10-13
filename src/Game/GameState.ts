@@ -58,7 +58,7 @@ export abstract class GameState {
 		// TIME (raw time which starts at 0 regardless of countdown)
 		this.time = 0;
 
-		this.displayedSkills = new DisplayedSkills(config.level);
+		this.displayedSkills = new DisplayedSkills(this.job, config.level);
 
 		// RESOURCES (checked when using skills)
 		// and skill CDs (also a form of resource)
@@ -96,8 +96,8 @@ export abstract class GameState {
 
 		// SKILLS (instantiated once, read-only later)
 		this.skillsList = new SkillsList(this);
+		this.displayedSkills = new DisplayedSkills(this.job, config.level);
 	}
-
 
 	/**
 	 * Get mp tick, lucid tick, and class-specific recurring timers rolling.
@@ -248,8 +248,7 @@ export abstract class GameState {
 
 	// BLM uses this for LL GCD scaling, but PCT does not
 	gcdRecastTimeScale() {
-		let ll = this.resources.get(ResourceType.LeyLines);
-		if (ll.available(1)) {
+		if (this.job === ShellJob.BLM && this.hasResourceAvailable(ResourceType.LeyLines)) {
 			// should be approximately 0.85
 			const num = this.config.getAfterTaxGCD(this.config.adjustedGCD(2.5, ResourceType.LeyLines));
 			const denom = this.config.getAfterTaxGCD(this.config.adjustedGCD(2.5));
@@ -298,7 +297,7 @@ export abstract class GameState {
 		let cd = this.cooldowns.get(skill.cdName);
 		let capturedManaCost = skill.manaCostFn(this);
 		// TODO refactor logic to determine self-buffs
-		let llCovered = this.hasResourceAvailable(ResourceType.LeyLines);
+		let llCovered = this.job === ShellJob.BLM && this.hasResourceAvailable(ResourceType.LeyLines);
 		const inspireSkills = [
 			SkillName.FireInRed,
 			SkillName.Fire2InRed,
@@ -316,7 +315,7 @@ export abstract class GameState {
 			SkillName.CometInBlack,
 			SkillName.StarPrism,
 		];
-		let inspired = this.resources.get(ResourceType.Inspiration).available(1) && inspireSkills.includes(skill.name);
+		let inspired = this.job === ShellJob.PCT && this.resources.get(ResourceType.Inspiration).available(1) && inspireSkills.includes(skill.name);
 		let capturedCastTime = skill.castTimeFn(this);
 		const recastTime = skill.recastTimeFn(this);
 		if (llCovered && skill.cdName === ResourceType.cd_GCD) {
@@ -560,7 +559,7 @@ export abstract class GameState {
 		let skill = this.skillsList.get(skillName);
 		let timeTillAvailable = this.#timeTillSkillAvailable(skill.name);
 		let capturedManaCost = skill.manaCostFn(this);
-		let llCovered = this.resources.get(ResourceType.LeyLines).available(1);
+		let llCovered = this.job === ShellJob.BLM && this.resources.get(ResourceType.LeyLines).available(1);
 		let capturedCastTime = skill.kind === "weaponskill" || skill.kind === "spell" ? skill.castTimeFn(this) : 0;
 		let instantCastAvailable = capturedCastTime === 0 || skill.kind === "ability" || skill.isInstantFn(this);
 		let currentMana = this.resources.get(ResourceType.Mana).availableAmount();

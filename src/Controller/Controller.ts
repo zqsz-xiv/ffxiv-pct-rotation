@@ -9,11 +9,14 @@ import {
 	TickMode
 } from "./Common";
 import {GameState} from "../Game/GameState";
-import {getConditionalReplacement} from "../Game/Skills";
+import {getAutoReplacedSkillName, getConditionalReplacement, getNormalizedSkillName} from "../Game/Skills";
 import {BLMState} from "../Game/Jobs/BLM";
 import {PCTState} from "../Game/Jobs/PCT";
-import {Debug, LevelSync, ProcMode, ResourceType, SkillName, SkillReadyStatus, WarningType} from "../Game/Common";
+import {Buff} from "../Game/Buffs";
+import {Debug, BuffType, LevelSync, ProcMode, ResourceType, SkillName, SkillReadyStatus, WarningType} from "../Game/Common";
 import {DEFAULT_CONFIG, GameConfig} from "../Game/GameConfig"
+import {BLMStatusPropsGenerator} from "../Components/Jobs/BLM";
+import {PCTStatusPropsGenerator} from "../Components/Jobs/PCT";
 import {updateStatusDisplay} from "../Components/StatusDisplay";
 import {updateSkillButtons} from "../Components/Skills";
 import {updateConfigDisplay} from "../Components/PlaybackControl"
@@ -43,7 +46,7 @@ const newGameState = (config: GameConfig) => {
 		return new PCTState(config);
 	}
 	return new BLMState(config);
-}
+};
 
 class Controller {
 	timeScale;
@@ -366,7 +369,14 @@ class Controller {
 		for (let i = 0; i < content.actions.length; i++) {
 			let action = content.actions[i];
 			let node = new ActionNode(action.type);
-			node.skillName = action.skillName;
+			if (action.skillName) {
+				node.skillName = getNormalizedSkillName(action.skillName);
+				if (node.skillName === undefined) {
+					const msg = `Failed to load record- \nInvalid skill name: ${node.skillName}`;
+					window.alert(msg);
+					return;
+				}
+			}
 			node.buffName = action.buffName;
 			node.waitDuration = action.waitDuration;
 			line.addActionNode(node);
@@ -608,50 +618,6 @@ class Controller {
 	}
 
 	updateStatusDisplay(game: GameState) {
-		// resources
-		const isBLM = ShellInfo.job === ShellJob.BLM;
-		let enoCountdown: number;
-		let polyglotCountdown: number;
-		let fireStacks: number;
-		let iceStacks: number;
-		if (isBLM) {
-			let eno = game.resources.get(ResourceType.Enochian);
-			if (eno.available(1) && !eno.pendingChange) {
-				enoCountdown = 15;
-			} else {
-				enoCountdown = game.resources.timeTillReady(ResourceType.Enochian);
-			}
-			polyglotCountdown = eno.available(1) ? game.resources.timeTillReady(ResourceType.Polyglot) : 30;
-			fireStacks = (game as BLMState).getFireStacks();
-			iceStacks = (game as BLMState).getIceStacks();
-		} else {
-			enoCountdown = 0;
-			polyglotCountdown = 0;
-			fireStacks = 0;
-			iceStacks = 0;
-		}
-
-		let resourcesData = {
-			mana: game.resources.get(ResourceType.Mana).availableAmount(),
-			timeTillNextManaTick: game.resources.timeTillReady(ResourceType.Mana),
-			enochianCountdown: enoCountdown,
-			astralFire: fireStacks,
-			umbralIce: iceStacks,
-			umbralHearts: game.resources.get(ResourceType.UmbralHeart).availableAmount(),
-			paradox: game.resources.get(ResourceType.Paradox).availableAmount(),
-			astralSoul: game.resources.get(ResourceType.AstralSoul).availableAmount(),
-			polyglotCountdown: polyglotCountdown,
-			polyglotStacks: game.resources.get(ResourceType.Polyglot).availableAmount(),
-			// TODO split up
-			portrait: game.resources.get(ResourceType.Portrait).availableAmount(),
-			depictions: game.resources.get(ResourceType.Depictions).availableAmount(),
-			creatureCanvas: game.resources.get(ResourceType.CreatureCanvas).availableAmount(),
-			weaponCanvas: game.resources.get(ResourceType.WeaponCanvas).availableAmount(),
-			landscapeCanvas: game.resources.get(ResourceType.LandscapeCanvas).availableAmount(),
-			paletteGauge: game.resources.get(ResourceType.PaletteGauge).availableAmount(),
-			paint: game.resources.get(ResourceType.Paint).availableAmount(),
-			hasComet: game.resources.get(ResourceType.MonochromeTones).available(1),
-		};
 		// locks
 		let cast = game.resources.get(ResourceType.NotCasterTaxed);
 		let anim = game.resources.get(ResourceType.NotAnimationLocked);
@@ -668,53 +634,16 @@ class Controller {
 			animLockCountdown: game.resources.timeTillReady(ResourceType.NotAnimationLocked),
 			canMove: game.resources.get(ResourceType.Movement).available(1),
 		};
-		// enemy buffs
-		let enemyBuffsData = {
-			DoTCountdown: game.resources.timeTillReady(ResourceType.ThunderDoT),
-			addleCountdown: game.resources.timeTillReady(ResourceType.Addle)
-		};
-		// self buffs
-		let selfBuffsData = {
-			leyLinesEnabled: game.resources.get(ResourceType.LeyLines).enabled,
-			leyLinesCountdown: game.resources.timeTillReady(ResourceType.LeyLines),
-			triplecastCountdown: game.resources.timeTillReady(ResourceType.Triplecast),
-			triplecastStacks: game.resources.get(ResourceType.Triplecast).availableAmount(),
-			firestarterCountdown: game.resources.timeTillReady(ResourceType.Firestarter),
-			thunderheadCountdown: game.resources.timeTillReady(ResourceType.Thunderhead),
-			manawardCountdown: game.resources.timeTillReady(ResourceType.Manaward),
-
-			// TODO split up
-			aetherhuesCountdown: game.resources.timeTillReady(ResourceType.Aetherhues),
-			aetherhuesStacks: game.resources.get(ResourceType.Aetherhues).availableAmount(),
-			monochromeTones: game.resources.get(ResourceType.MonochromeTones).availableAmount(),
-			subtractivePalette: game.resources.get(ResourceType.SubtractivePalette).availableAmount(),
-			subtractiveSpectrumCountdown: game.resources.timeTillReady(ResourceType.SubtractiveSpectrum),
-			starryMuseCountdown: game.resources.timeTillReady(ResourceType.StarryMuse),
-			hyperphantasiaCountdown: game.resources.timeTillReady(ResourceType.Hyperphantasia),
-			hyperphantasiaStacks: game.resources.get(ResourceType.Hyperphantasia).availableAmount(),
-			inspirationEnabled: game.resources.get(ResourceType.Inspiration).enabled,
-			inspirationCountdown: game.resources.timeTillReady(ResourceType.Inspiration),
-			rainbowBrightCountdown: game.resources.timeTillReady(ResourceType.RainbowBright),
-			starstruckCountdown: game.resources.timeTillReady(ResourceType.Starstruck),
-			hammerTimeCountdown: game.resources.timeTillReady(ResourceType.HammerTime),
-			hammerTimeStacks: game.resources.get(ResourceType.HammerTime).availableAmount(),
-			temperaCoatCountdown: game.resources.timeTillReady(ResourceType.TemperaCoat),
-			temperaGrassaCountdown: game.resources.timeTillReady(ResourceType.TemperaGrassa),
-			smudgeCountdown: game.resources.timeTillReady(ResourceType.Smudge),
-			
-			swiftcastCountdown: game.resources.timeTillReady(ResourceType.Swiftcast),
-			lucidDreamingCountdown: game.resources.timeTillReady(ResourceType.LucidDreaming),
-			surecastCountdown: game.resources.timeTillReady(ResourceType.Surecast),
-			tinctureCountdown: game.resources.timeTillReady(ResourceType.Tincture),
-			sprintCountdown: game.resources.timeTillReady(ResourceType.Sprint),
-		};
 		if (typeof updateStatusDisplay !== "undefined") {
+			const propsGenerator = ShellInfo.job === ShellJob.PCT
+				? new PCTStatusPropsGenerator(game as PCTState)
+				: new BLMStatusPropsGenerator(game as BLMState);
 			updateStatusDisplay({
 				time: game.getDisplayTime(),
-				resources: resourcesData,
+				resources: propsGenerator.getResourceViewProps(),
 				resourceLocks: resourceLocksData,
-				enemyBuffs: enemyBuffsData,
-				selfBuffs: selfBuffsData,
+				enemyBuffs: propsGenerator.getEnemyBuffViewProps(),
+				selfBuffs: propsGenerator.getSelfBuffViewProps(),
 				level: game.config.level,
 			});
 		}
@@ -994,8 +923,7 @@ class Controller {
 				let skillName = itr.skillName as SkillName;
 				if (props.replayMode === ReplayMode.SkillSequence) {
 					// auto-replace as much as possible
-					let replacedSkill = this.game.skillsList.getAutoReplaced(skillName, this.gameConfig.level);
-					skillName = replacedSkill.name;
+					skillName = getAutoReplacedSkillName(this.game.job, skillName, this.gameConfig.level);
 				}
 				let status = this.#useSkill(skillName, waitFirst, TickMode.Manual);
 
@@ -1169,6 +1097,64 @@ class Controller {
 			row.castTime
 		]; });
 		return [["time", "action", "isGCD", "castTime"]].concat(csvRows as any[][]);
+	}
+
+	// return rows of a CSV to feed to Amarantine's combat sim
+	// https://github.com/Amarantine-xiv/Amas-FF14-Combat-Sim
+	getAmaSimCsv(): any[][] {
+		const normalizeName = (s: string) => {
+			if (s === SkillName.Tincture) {
+				return "Grade 2 Gemdraught";
+			} else {
+				return s.replace(" 2", " II").replace(" 3", " III").replace(" 4", " IV");
+			}
+		};
+		const buffRows = this.timeline.getBuffMarkers().map(
+			marker => {
+				const buff = new Buff(marker.description as BuffType);
+				let buffName: string = buff.info.name as string;
+				if (buffName === BuffType.Card_TheSpear) {
+					buffName = "The Spear";
+				} else if (buffName === BuffType.Card_TheBalance) {
+					buffName = "The Balance";
+				}
+				return [
+					marker.time,
+					buffName,
+					buff.info.job,
+					buff.info.name === BuffType.Dokumori ? "Debuff only" :
+					(buff.info.name === BuffType.TechnicalFinish ? "Buff only" : "")
+				];
+			}
+		);
+		const actionRows = (
+			this.#actionsLogCsv
+				// sim currently doesn't track mp ticks or mp costs, so skip lucid dreaming
+				// also skip sprint, buff toggle events, and any other non-damage-related abilities
+				.filter(
+					row => ![
+						SkillName.Sprint as string,
+						SkillName.LucidDreaming as string,
+						SkillName.BetweenTheLines as string,
+						SkillName.Retrace as string,
+						SkillName.Addle as string,
+						SkillName.AetherialManipulation as string,
+						SkillName.Manaward as string,
+						SkillName.Surecast as string,
+
+						SkillName.TemperaGrassaPop as string,
+						SkillName.TemperaCoatPop as string,
+					].includes(row.action)
+					&& !row.action.includes("Toggle buff")
+				)
+				.map(row => [
+					row.time,
+					normalizeName(row.action),
+					"",
+					""
+				])
+		);
+		return [["Time", "skill_name", "job_class", "skill_conditional"]].concat(buffRows as any[][], actionRows as any[][]);
 	}
 
 	// generally used for trying to add a line to the current timeline

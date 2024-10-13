@@ -144,6 +144,17 @@ export type Skill<T extends PlayerState> = Spell<T> | Weaponskill<T> | Ability<T
 // the ShellJob and Skill<T>, so we'll just have to live with performing casts at certain locations.
 const skillMap: Map<ShellJob, Map<SkillName, Skill<PlayerState>>> = new Map();
 
+const normalizedSkillNameMap = new Map<string, SkillName>();
+/**
+ * Attempt to retrieve a SkillName enum member from the specified string. This function is run
+ * when a line is loaded to fix some capitalization errors present in earlier versions of
+ * PCT in the Shell, where "Thunder In Magenta" was capitalized inappropriately (should be
+ * "Thunder in Magenta" with "in" not capitalized.
+ */
+export function getNormalizedSkillName(s: string): SkillName | undefined {
+	return normalizedSkillNameMap.get(s.toLowerCase());
+}
+
 // Return a particular skill for a job.
 // Raises if the skill is not found.
 export function getSkill<T extends PlayerState>(job: ShellJob, skillName: SkillName): Skill<T> {
@@ -155,6 +166,10 @@ export function getAllSkills<T extends PlayerState>(job: ShellJob): Map<SkillNam
 	return skillMap.get(job)!;
 }
 
+function setSkill<T extends PlayerState>(job: ShellJob, skillName: SkillName, skill: Skill<T>) {
+	skillMap.get(job)!.set(skillName, skill as Skill<PlayerState>);
+	normalizedSkillNameMap.set(skillName.toLowerCase(), skillName);
+}
 
 ALL_JOBS.forEach((job) => skillMap.set(job, new Map()));
 
@@ -250,7 +265,7 @@ export function makeSpell<T extends PlayerState>(jobs: ShellJob | ShellJob[], na
 		onApplication: params.onApplication ?? NO_EFFECT,
 		applicationDelay: params.applicationDelay ?? 0,
 	};
-	jobs.forEach((job) => skillMap.get(job)!.set(info.name, info as Spell<PlayerState>));
+	jobs.forEach((job) => setSkill(job, info.name, info));
 	return info;
 };
 
@@ -308,7 +323,7 @@ export function makeAbility<T extends PlayerState>(jobs: ShellJob | ShellJob[], 
 		onConfirm: params.onConfirm ?? NO_EFFECT,
 		onApplication: params.onApplication ?? NO_EFFECT,
 	};
-	jobs.forEach((job) => skillMap.get(job)!.set(info.name, info as Ability<PlayerState>));
+	jobs.forEach((job) => setSkill(job, info.name, info));
 	if (params.cooldown !== undefined) {
 		jobs.forEach((job) => makeCooldown(job, cdName, params.cooldown!, params.maxCharges ?? 1));
 	}
@@ -398,19 +413,19 @@ export class SkillsList<T extends PlayerState> {
 			return NEVER_SKILL;
 		}
 	}
+}
 
-	getAutoReplaced(key: SkillName, level: number): Skill<T> {
-		let skill = this.get(key);
-		// upgrade: if level >= upgrade options
-		while (skill.autoUpgrade && Traits.hasUnlocked(skill.autoUpgrade.trait, level)) {
-			skill = this.getAutoReplaced(skill.autoUpgrade.otherSkill, level);
-		}
-		// downgrade: if level < current skill required level
-		while (skill.autoDowngrade && level < skill.unlockLevel) {
-			skill = this.getAutoReplaced(skill.autoDowngrade.otherSkill, level);
-		}
-		return skill;
+export function getAutoReplacedSkillName(job: ShellJob, skillName: SkillName, level: LevelSync): SkillName {
+	let skill = getSkill(job, skillName);
+	// upgrade: if level >= upgrade options
+	while (skill.autoUpgrade && Traits.hasUnlocked(skill.autoUpgrade.trait, level)) {
+		skill = getSkill(job, getAutoReplacedSkillName(job, skill.autoUpgrade.otherSkill, level));
 	}
+	// downgrade: if level < current skill required level
+	while (skill.autoDowngrade && level < skill.unlockLevel) {
+		skill = getSkill(job, getAutoReplacedSkillName(job, skill.autoDowngrade.otherSkill, level));
+	}
+	return skill.name;
 }
 
 export function getConditionalReplacement<T extends PlayerState>(key: SkillName, state: T): SkillName {
@@ -431,7 +446,7 @@ export function getConditionalReplacement<T extends PlayerState>(key: SkillName,
 export class DisplayedSkills  {
 	#skills: SkillName[];
 
-	constructor(level: LevelSync) {
+	constructor(job: ShellJob, level: LevelSync) {
 		this.#skills = [];
 		console.assert(skillMap.has(ShellInfo.job), `No skill map found for job: ${ShellInfo.job}`)
 		for (const skillInfo of skillMap.get(ShellInfo.job)!.values()) {
@@ -444,7 +459,7 @@ export class DisplayedSkills  {
 				&& skillInfo.autoDowngrade === undefined
 				&& skillInfo.startOnHotbar
 			) {
-				this.#skills.push(skillInfo.name);
+				this.#skills.push(getAutoReplacedSkillName(job, skillInfo.name, level));
 			}
 		}
 	}

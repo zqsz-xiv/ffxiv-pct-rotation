@@ -1,5 +1,13 @@
 [
     {
+        "date": "10/13/24",
+        "changes": [
+            "Fixed capitalization errors in \"Blizzard in Cyan\" and \"Thunder in Magenta\"",
+            "[merge] Enabled export to Amarantine's combat sim",
+            "[merge] Synchronized UI layout with latest BLM in the Shell"
+        ]
+    },
+    {
         "date": "10/6/24",
         "changes": [
             "Show timestamp of error for invalid sequences in the timeline editor"
