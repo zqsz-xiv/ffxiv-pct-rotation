@@ -3,7 +3,7 @@ import {Clickable, ContentNode, Help, ProgressBar, StaticFn} from "./Common";
 import {ResourceType} from "../Game/Common";
 import type {PlayerState} from "../Game/GameState";
 import {controller} from "../Controller/Controller";
-import {localize} from "./Localization";
+import {localize, localizeResourceType} from "./Localization";
 import {getCurrentThemeColors} from "./ColorTheme";
 
 type StatusResourceLocksViewProps = {
@@ -214,7 +214,7 @@ function Buff(props: BuffProps) {
 		if (props.stacks === 2) assetName += "2";
 		else if (props.stacks === 3) assetName += "3";
 	}
-	return <div title={props.rscType} className={props.className + " buff " + props.rscType}>
+	return <div title={localizeResourceType(props.rscType)} className={props.className + " buff " + props.rscType}>
 		<Clickable content={
 			<img style={{height: 40}} src={buffIcons.get(assetName)} alt={props.rscType}/>
 		} style={{
