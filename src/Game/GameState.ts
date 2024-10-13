@@ -58,7 +58,7 @@ export abstract class GameState {
 		// TIME (raw time which starts at 0 regardless of countdown)
 		this.time = 0;
 
-		this.displayedSkills = new DisplayedSkills(config.level);
+		this.displayedSkills = new DisplayedSkills(this.job, config.level);
 
 		// RESOURCES (checked when using skills)
 		// and skill CDs (also a form of resource)
@@ -96,8 +96,8 @@ export abstract class GameState {
 
 		// SKILLS (instantiated once, read-only later)
 		this.skillsList = new SkillsList(this);
+		this.displayedSkills = new DisplayedSkills(this.job, config.level);
 	}
-
 
 	/**
 	 * Get mp tick, lucid tick, and class-specific recurring timers rolling.

@@ -82,7 +82,7 @@ export class BLMState extends GameState {
 		this.registerRecurringEvents();
 	}
 
-	registerRecurringEvents() {
+	override registerRecurringEvents() {
 		super.registerRecurringEvents();
 		// thunder DoT tick
 		let recurringThunderTick = () => {
@@ -695,6 +695,9 @@ makeAbility_BLM(SkillName.BetweenTheLines, 62, ResourceType.cd_BetweenTheLines, 
 	applicationDelay: 0, // ?
 	cooldown: 3,
 	validateAttempt: (state) => state.resources.get(ResourceType.LeyLines).availableAmountIncludingDisabled() > 0,
+	onConfirm: (state, node) => {
+		state.resources.get(ResourceType.LeyLines).enabled = true;
+	},
 });
 
 makeAbility_BLM(SkillName.AetherialManipulation, 50, ResourceType.cd_AetherialManipulation, {
@@ -900,8 +903,3 @@ makeAbility_BLM(SkillName.Retrace, 96, ResourceType.cd_Retrace, {
 	},
 	startOnHotbar: false,
 });
-
-// TODO this function is kept here to avoid circular imports, but should probably be moved
-export function newGameState(config: GameConfig) {
-	return new BLMState(config);
-}

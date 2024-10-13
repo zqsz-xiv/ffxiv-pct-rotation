@@ -1,7 +1,7 @@
 import React, {CSSProperties} from 'react';
 import {Timeline, updateTimelineView} from "./Timeline";
 import { SkillsWindow } from "./Skills";
-import { Config, TimeControl } from "./PlaybackControl";
+import {Config, TimeControl} from "./PlaybackControl";
 import { StatusDisplay } from "./StatusDisplay";
 import {controller} from "../Controller/Controller";
 import 'react-tabs/style/react-tabs.css';
@@ -9,13 +9,11 @@ import {SkillSequencePresets} from "./SkillSequencePresets";
 import {IntroSection} from "./IntroSection";
 import changelog from "../pct_changelog.json"
 import {localize, localizeDate, SelectLanguage} from "./Localization"
-import {GlobalHelpTooltip} from "./Common";
+import {GlobalHelpTooltip, Tabs} from "./Common";
 import {getCurrentThemeColors, SelectColorTheme} from "./ColorTheme";
 import {DamageStatistics} from "./DamageStatistics";
 import {MAX_TIMELINE_SLOTS} from "../Controller/Timeline";
 import {clearCachedValues, getCachedValue, setCachedValue, containsEwCacheContent} from "../Controller/Common";
-
-const ROADMAP_URL = "https://github.com/users/zqsz-xiv/projects/1";
 
 export let setRealTime = (inRealTime: boolean) => {};
 export let setHistorical = (inHistorical: boolean) => {};
@@ -46,6 +44,29 @@ function handleUrlCommands(command?: string) {
 }
 
 export let forceUpdateAll = ()=>{};
+
+function ConfigTabs(props: {
+	height: number
+}) {
+	return <div style={{
+		flex: 3,
+		height: props.height,
+		marginLeft: 6,
+		position: "relative",
+		verticalAlign: "top",
+	}}>
+		<Tabs uniqueName={"mainConfig"} content={[
+			{
+				titleNode: localize({en: "Config", zh: "属性设置"}),
+				contentNode: <Config/>
+			},
+			{
+				titleNode: localize({en: "Control", zh: "时间控制"}),
+				contentNode: <TimeControl/>
+			}
+		]} collapsible={false} scrollable={true} height={props.height} defaultSelectedIndex={0}/>
+	</div>
+}
 
 export default class Main extends React.Component {
 
@@ -163,13 +184,22 @@ export default class Main extends React.Component {
 			top: 0, bottom: 0, left: 0, right: 0
 		}}>
 			<style>{`
-				.staticScrollbar::-webkit-scrollbar {
+				.visibleScrollbar::-webkit-scrollbar {
 					appearance: none;
 					background-color: ${colors.bgLowContrast};
 					height: 8px;
 					width: 5px;
 				}
-				.staticScrollbar::-webkit-scrollbar-thumb {
+				.visibleScrollbar::-webkit-scrollbar-thumb {
+					background-color: ${colors.bgHighContrast};
+				}
+				.invisibleScrollbar::-webkit-scrollbar {
+					appearance: none;
+					background-color: clear;
+					height: 8px;
+					width: 5px;
+				}
+				.invisibleScrollbar::-webkit-scrollbar-thumb {
 					background-color: ${colors.bgHighContrast};
 				}
 				a {
@@ -177,6 +207,13 @@ export default class Main extends React.Component {
 				}
 				b, h1, h2, h3, h4 {
 					color: ${colors.emphasis};
+				}
+				p {
+					margin-block-start: 10px;
+					margin-block-end: 10px;
+				}
+				p:first-child {
+					margin-block-start: 0px;
 				}
 				::selection {
 					background: rgba(147, 112, 219, 0.4);
@@ -251,24 +288,15 @@ export default class Main extends React.Component {
 					}}>
 						<SelectLanguage/>
 						<SelectColorTheme/>
-						{localize({
-							en: <div style={{marginBottom: 16}}>Last updated: {changelog[0].date} (see <b>About this
-									tool/Changelog</b>) (see my <a href={ROADMAP_URL}>roadmap</a>)
-							</div>,
-							zh: <div style={{marginBottom: 16}}>最近更新（月日年）：{changelog[0].date}（详见<b>关于/更新日志</b>）（<a href={ROADMAP_URL}>开发计划</a>）
-							</div>,
-							ja: <div style={{marginBottom: 16}}>最終更新日：{localizeDate(changelog[0].date, "ja")}（<b>このツールについて/更新履歴</b>を参照）（<a href={ROADMAP_URL}>ロードマップ</a>）
-							</div>,
-						})}
 						<div>
-							<h3 style={{marginTop: 20, marginBottom: 6}}>Pictomancer in the Shell</h3>
-							{/*localize({
+							<h3 style={{marginTop: 20, marginBottom: 6}}>Pictomancer Mage in the Shell</h3>
+							{localize({
 								en: <div style={{marginBottom: 16}}>Last updated: {changelog[0].date} (see <b>About this
 									tool/Changelog</b>)
 								</div>,
 								zh: <div style={{marginBottom: 16}}>最近更新（月日年）：{changelog[0].date}（详见<b>关于/更新日志</b>）</div>,
 								ja: <div style={{marginBottom: 16}}>最終更新日：{localizeDate(changelog[0].date, "ja")}（<b>このツールについて/更新履歴</b>を参照）（<a href={"https://coda.io/d/_d-N3WFoMZ8e/Black-Mage-in-the-Shell_suRLF"}>ロードマップ</a>）</div>,
-							})*/}
+							})}
 
 							{/* PSA */}
 
@@ -300,21 +328,7 @@ export default class Main extends React.Component {
 							position: "relative",
 							marginBottom: "20px"}}>
 							{mainControlRegion}
-							<div className={"staticScrollbar"} style={{
-								flex: 3,
-								height: this.state.controlRegionHeight,
-								marginLeft: 6,
-								position: "relative",
-								verticalAlign: "top",
-								overflowY: "scroll",
-							}}>
-								<Config/>
-								<TimeControl/>
-								<div>{localize({
-									en: "You can also import/export fights from/to local files at the bottom of the page.",
-									zh: "页面底部有导入和导出战斗文件相关选项。"
-								})}</div>
-							</div>
+							<ConfigTabs height={this.state.controlRegionHeight}/>
 						</div>
 						<SkillSequencePresets/>
 						<hr style={{

@@ -1,33 +1,10 @@
 import React from 'react';
 import {Clickable, ContentNode, Help, ProgressBar, StaticFn} from "./Common";
 import {ResourceType} from "../Game/Common";
+import type {PlayerState} from "../Game/GameState";
 import {controller} from "../Controller/Controller";
-import {ShellInfo, ShellJob} from "../Controller/Common";
-import {localize, localizeResourceType} from "./Localization";
+import {localize} from "./Localization";
 import {getCurrentThemeColors} from "./ColorTheme";
-import {TraitName, Traits} from '../Game/Traits';
-
-type StatusResourcesViewProps = {
-	mana: number,
-	timeTillNextManaTick: number,
-	enochianCountdown: number,
-	astralFire: number,
-	umbralIce: number,
-	umbralHearts: number,
-	paradox: number,
-	astralSoul: number,
-	polyglotCountdown: number,
-	polyglotStacks: number,
-	// TODO split up by job
-	portrait: number,
-	depictions: number,
-	creatureCanvas: number,
-	weaponCanvas: number,
-	landscapeCanvas: number,
-	paletteGauge: number,
-	paint: number,
-	hasComet: boolean,
-}
 
 type StatusResourceLocksViewProps = {
 	gcdReady: boolean,
@@ -42,52 +19,64 @@ type StatusResourceLocksViewProps = {
 	canMove: boolean
 }
 
-type StatusEnemyBuffsViewProps = {
-	DoTCountdown: number,
-	addleCountdown: number
-}
-
-type StatusSelfBuffsViewProps = {
-	leyLinesEnabled: boolean,
-	leyLinesCountdown: number,
-	triplecastCountdown: number,
-	triplecastStacks: number,
-	firestarterCountdown: number,
-	thunderheadCountdown: number,
-	manawardCountdown: number,
-} & {
-	rainbowBrightCountdown: number,
-	hyperphantasiaStacks: number,
-	hyperphantasiaCountdown: number,
-	inspirationEnabled: boolean,
-	inspirationCountdown: number,
-	subtractiveSpectrumCountdown: number,
-	hammerTimeStacks: number,
-	hammerTimeCountdown: number,
-	starstruckCountdown: number,
-	aetherhuesStacks: number,
-	aetherhuesCountdown: number,
-	monochromeTones: number,
-	subtractivePalette: number,
-	starryMuseCountdown: number,
-	temperaCoatCountdown: number,
-	temperaGrassaCountdown: number,
-	smudgeCountdown: number,
-} & {
-	swiftcastCountdown: number,
-	lucidDreamingCountdown: number,
-	surecastCountdown: number,
-	tinctureCountdown: number,
-	sprintCountdown: number
+export type BuffProps = {
+	rscType: ResourceType,
+	onSelf: boolean,
+	enabled: boolean,
+	stacks: number,
+	timeRemaining?: string,
+	className: string
 };
+
+export interface ResourceBarProps {
+	kind: "bar";
+	name: string | ContentNode;
+	color: string;
+	progress: number;
+	valueString: string;
+	widthPx?: number; // default 100
+	hidden?: boolean; // default false
+};
+
+export interface ResourceCounterProps {
+	kind: "counter";
+	name: string | ContentNode;
+	color: string;
+	currentStacks: number;
+	maxStacks: number;
+	valueString: string;
+};
+
+export interface PaintGaugeCounterProps {
+	kind: "paint",
+	name: ContentNode,
+	holyColor: string,
+	cometColor: string,
+	currentStacks: number,
+	maxStacks: number,
+	hasComet: boolean,
+};
+
+export interface ResourceTextProps {
+	kind: "text",
+	name: ContentNode,
+	text: ContentNode,
+	className?: string,
+};
+
+export type ResourceDisplayProps =
+	ResourceBarProps |
+	ResourceCounterProps |
+	PaintGaugeCounterProps |
+	ResourceTextProps;
 
 // everything should be required here except that'll require repeating all those lines to give default values
 type StatusViewProps = {
 	time: number,
-	resources?: StatusResourcesViewProps,
+	resources?: ResourceDisplayProps[],
 	resourceLocks?: StatusResourceLocksViewProps,
-	enemyBuffs?: StatusEnemyBuffsViewProps,
-	selfBuffs?: StatusSelfBuffsViewProps,
+	enemyBuffs?: BuffProps[],
+	selfBuffs?: BuffProps[],
 	level: number
 }
 
@@ -168,7 +157,6 @@ function PaintGaugeCounter(props: {
 	currentStacks: number,
 	maxStacks: number,
 	hasComet: boolean,
-	className?: string,
 }) {
 	let stacks = [];
 	for (let i = 0; i < 5; i++) {
@@ -176,7 +164,7 @@ function PaintGaugeCounter(props: {
 		let isComet = props.hasComet && i === props.currentStacks - 1;
 		stacks.push(<ResourceStack key={i} color={isComet ? props.cometColor : props.holyColor} value={i < props.currentStacks}/>)
 	}
-	return <div className={props.className} style={{marginBottom: 4, lineHeight: "1.5em"}}>
+	return <div style={{marginBottom: 4, lineHeight: "1.5em"}}>
 		<div style={{display: "inline-block", height: "100%", width: 108}}>{props.name}</div>
 		<div style={{width: 200, display: "inline-block"}}>
 			<div style={{display: "inline-block", marginLeft: 6}}>{stacks}</div>
@@ -198,45 +186,11 @@ function ResourceText(props: {
 	</div>;
 }
 
-
 const buffIcons = new Map();
 
-// TODO move this declaration elsewhere
-const blmBuffResources = [
-	ResourceType.Triplecast,
-	ResourceType.Triplecast + "2",
-	ResourceType.Triplecast + "3",
-	ResourceType.Firestarter,
-	ResourceType.Thunderhead,
-	ResourceType.ThunderDoT,
-	ResourceType.LeyLines,
-	ResourceType.Manaward,
-];
-
-const pctBuffResources = [
-	ResourceType.Aetherhues,
-	ResourceType.Aetherhues + "2",
-	ResourceType.MonochromeTones,
-	ResourceType.HammerTime,
-	ResourceType.HammerTime + "2",
-	ResourceType.HammerTime + "3",
-	ResourceType.Inspiration,
-	ResourceType.SubtractivePalette,
-	ResourceType.SubtractivePalette + "2",
-	ResourceType.SubtractivePalette + "3",
-	ResourceType.SubtractiveSpectrum,
-	ResourceType.Hyperphantasia,
-	ResourceType.Hyperphantasia + "2",
-	ResourceType.Hyperphantasia + "3",
-	ResourceType.Hyperphantasia + "4",
-	ResourceType.Hyperphantasia + "5",
-	ResourceType.RainbowBright,
-	ResourceType.Starstruck,
-	ResourceType.StarryMuse,
-	ResourceType.TemperaCoat,
-	ResourceType.TemperaGrassa,
-	ResourceType.Smudge,
-];
+export function registerBuffIcon(buff: string, relativePath: string) {
+	buffIcons.set(buff, require(`./Asset/Buffs/${relativePath}`));
+}
 
 const casterRoleBuffResources = [
 	ResourceType.Addle,
@@ -246,15 +200,7 @@ const casterRoleBuffResources = [
 	ResourceType.Tincture,
 ];
 
-
-blmBuffResources.forEach(
-	(buff) => buffIcons.set(buff, require(`./Asset/Buffs/BLM/${buff}.png`))
-);
-
-pctBuffResources.forEach(
-	(buff) => buffIcons.set(buff, require(`./Asset/Buffs/PCT/${buff}.png`))
-);
-
+// role buffs are registered here; job buffs should be registered in the job's respective file
 casterRoleBuffResources.forEach(
 	(buff) => buffIcons.set(buff, require(`./Asset/Buffs/CasterRole/${buff}.png`))
 );
@@ -262,22 +208,15 @@ casterRoleBuffResources.forEach(
 buffIcons.set(ResourceType.Sprint, require("./Asset/Buffs/General/Sprint.png"));
 
 // rscType, stacks, timeRemaining, onSelf, enabled
-function Buff(props: {
-	rscType: ResourceType,
-	onSelf: boolean,
-	enabled: boolean,
-	stacks: number,
-	timeRemaining?: string,
-	className: string
-}) {
+function Buff(props: BuffProps) {
 	let assetName: string = props.rscType;
-	if (props.stacks > 1) {
-		assetName += props.stacks.toString();
+	if (props.rscType === ResourceType.Triplecast) {
+		if (props.stacks === 2) assetName += "2";
+		else if (props.stacks === 3) assetName += "3";
 	}
-	const rscDisplayName = localizeResourceType(props.rscType);
-	return <div title={rscDisplayName} className={props.className + " buff " + props.rscType}>
+	return <div title={props.rscType} className={props.className + " buff " + props.rscType}>
 		<Clickable content={
-			<img style={{height: 40}} src={buffIcons.get(assetName)} alt={rscDisplayName}/>
+			<img style={{height: 40}} src={buffIcons.get(assetName)} alt={props.rscType}/>
 		} style={{
 			display: "inline-block",
 			verticalAlign: "top",
@@ -298,131 +237,9 @@ function Buff(props: {
 }
 
 function BuffsDisplay(props: {
-	data: StatusSelfBuffsViewProps
+	data: BuffProps[]
 }) {
-	let data = props.data;
-	let buffs = [];
-	buffs.push({
-		rscType: ResourceType.LeyLines,
-		onSelf: true,
-		enabled: data.leyLinesEnabled,
-		stacks:1,
-		timeRemaining: data.leyLinesCountdown.toFixed(3),
-		className: data.leyLinesCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Triplecast,
-		onSelf: true,
-		enabled: true,
-		stacks: data.triplecastStacks,
-		timeRemaining: data.triplecastCountdown.toFixed(3),
-		className: data.triplecastCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Firestarter,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.firestarterCountdown.toFixed(3),
-		className: data.firestarterCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Thunderhead,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.thunderheadCountdown.toFixed(3),
-		className: data.thunderheadCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Manaward,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.manawardCountdown.toFixed(3),
-		className: data.manawardCountdown > 0 ? "" : "hidden"
-	});
-
-	const pushPictoTimer = (rscType: ResourceType, stacks: number, cd: number) => {
-		let enabled = (rscType === ResourceType.Inspiration) ? data.inspirationEnabled : true;
-		buffs.push({
-			rscType: rscType,
-			onSelf: true,
-			enabled: enabled,
-			stacks: stacks,
-			timeRemaining: cd.toFixed(3),
-			className: cd > 0 ? "" : "hidden"
-		});
-	};
-
-	const pushPictoIndefinite = (rscType: ResourceType, stacks: number) => {
-		buffs.push({
-			rscType: rscType,
-			onSelf: true,
-			enabled: true,
-			stacks: stacks,
-			className: stacks ? "" : "hidden",
-		});
-	};
-
-	// TODO check order
-	if (ShellInfo.job === ShellJob.PCT) {
-		pushPictoTimer(ResourceType.RainbowBright, 1, data.rainbowBrightCountdown);
-		pushPictoTimer(ResourceType.Hyperphantasia, data.hyperphantasiaStacks, data.hyperphantasiaCountdown);
-		pushPictoTimer(ResourceType.Inspiration, 1, data.inspirationCountdown);
-		pushPictoTimer(ResourceType.SubtractiveSpectrum, 1, data.subtractiveSpectrumCountdown);
-		pushPictoTimer(ResourceType.HammerTime, data.hammerTimeStacks, data.hammerTimeCountdown);
-		pushPictoTimer(ResourceType.Starstruck, 1, data.starstruckCountdown);
-		pushPictoTimer(ResourceType.Aetherhues, data.aetherhuesStacks, data.aetherhuesCountdown);
-		pushPictoIndefinite(ResourceType.MonochromeTones, data.monochromeTones);
-		pushPictoIndefinite(ResourceType.SubtractivePalette, data.subtractivePalette);
-		pushPictoTimer(ResourceType.StarryMuse, 1, data.starryMuseCountdown);
-		pushPictoTimer(ResourceType.TemperaCoat, 1, data.temperaCoatCountdown);
-		pushPictoTimer(ResourceType.TemperaGrassa, 1, data.temperaGrassaCountdown);
-		pushPictoTimer(ResourceType.Smudge, 1, data.smudgeCountdown);
-	}
-
-	buffs.push({
-		rscType: ResourceType.Swiftcast,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.swiftcastCountdown.toFixed(3),
-		className: data.swiftcastCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.LucidDreaming,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.lucidDreamingCountdown.toFixed(3),
-		className: data.lucidDreamingCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Surecast,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.surecastCountdown.toFixed(3),
-		className: data.surecastCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Tincture,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.tinctureCountdown.toFixed(3),
-		className: data.tinctureCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Sprint,
-		onSelf: true,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.sprintCountdown.toFixed(3),
-		className: data.sprintCountdown > 0 ? "" : "hidden"
-	});
-
+	const buffs = props.data;
 	let buffElems: React.ReactNode[] = [];
 	for (let i = 0; i < buffs.length; i++) {
 		buffElems.push(<Buff key={i} {...buffs[i]}/>);
@@ -434,27 +251,9 @@ function BuffsDisplay(props: {
 }
 
 function EnemyBuffsDisplay(props: {
-	data: StatusEnemyBuffsViewProps
+	data: BuffProps[]
 }) {
-	let data = props.data;
-	let buffs = [];
-	buffs.push({
-		rscType: ResourceType.ThunderDoT,
-		onSelf: false,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.DoTCountdown.toFixed(3),
-		className: data.DoTCountdown > 0 ? "" : "hidden"
-	});
-	buffs.push({
-		rscType: ResourceType.Addle,
-		onSelf: false,
-		enabled: true,
-		stacks:1,
-		timeRemaining: data.addleCountdown.toFixed(3),
-		className: data.addleCountdown > 0 ? "" : "hidden"
-	});
-
+	const buffs = props.data;
 	let buffElems: React.ReactNode[] = [];
 	for (let i = 0; i < buffs.length; i++) {
 		buffElems.push(<Buff key={i} {...buffs[i]}/>);
@@ -500,253 +299,48 @@ function ResourceLocksDisplay(props: {
 function ResourcesDisplay(props: {
 	data: {
 		level: number,
-		resources: StatusResourcesViewProps
+		resources: ResourceDisplayProps[],
 	}
 }) {
-	let colors = getCurrentThemeColors();
-	let data = props.data;
-	let resources = props.data.resources;
-
-	let manaBar = <ResourceBar
-		name={"MP"}
-		color={colors.resources.mana}
-		progress={resources.mana / 10000}
-		value={Math.floor(resources.mana) + "/10000"}
-		width={100}
-		hidden={false}
-	/>;
-	let manaTick = <ResourceBar
-		name={localize({
-			en: "MP tick",
-			zh: "跳蓝时间",
-			ja: "MPティック"
-		})}
-		color={colors.resources.manaTick}
-		progress={1 - resources.timeTillNextManaTick / 3}
-		value={(3 - resources.timeTillNextManaTick).toFixed(3) + "/3"}
-		width={100}
-		hidden={false}
-	/>;
-	let enochian = <ResourceBar
-		name={localize({
-			en: "enochian",
-			zh: "天语",
-			ja: "エノキアン"
-		})}
-		color={colors.resources.enochian}
-		progress={resources.enochianCountdown / 15}
-		value={`${resources.enochianCountdown.toFixed(3)}`}
-		width={100}
-		hidden={false}
-	/>;
-	let afui = <ResourceCounter
-		name={localize({
-			en: "AF/UI",
-			zh: "冰火层数",
-			ja: "AF/UB"
-		})}
-		color={resources.astralFire > 0 ? colors.resources.astralFire : colors.resources.umbralIce}
-		currentStacks={resources.astralFire > 0 ? resources.astralFire : resources.umbralIce}
-		maxStacks={3}/>;
-	let uh = <ResourceCounter
-		name={
-			localize({
-				en: "hearts",
-				zh: "冰针",
-				ja: "アンブラルハート"
-			})}
-		color={colors.resources.umbralHeart}
-		currentStacks={resources.umbralHearts}
-		maxStacks={3}/>;
-	let paradox = data.level && Traits.hasUnlocked(TraitName.AspectMasteryIV, data.level) ?
-		<ResourceCounter
-			name={
-				localize({
-					en: "paradox",
-					zh: "悖论",
-					ja: "パラドックス"
-				})}
-			color={colors.resources.paradox}
-			currentStacks={resources.paradox}
-			maxStacks={1}/>
-		: undefined;
-	let soul = data.level && Traits.hasUnlocked(TraitName.EnhancedAstralFire, data.level) ?
-		<ResourceCounter
-			name={
-				localize({
-					en: "astral soul",
-					zh: "星极魂",
-					ja: "アストラルソウル"
-				})}
-			color={colors.resources.astralSoul}
-			currentStacks={resources.astralSoul}
-			maxStacks={6}/>
-		: undefined;
-	let polyTimer = <ResourceBar
-		name={
-			localize({
-				en: "poly timer",
-				zh: "通晓计时",
-				ja: "エノキ継続時間"
-			})}
-		color={colors.resources.polyTimer}
-		progress={1 - resources.polyglotCountdown / 30}
-		value={`${resources.polyglotCountdown.toFixed(3)}`}
-		width={100}
-		hidden={false}
-	/>;
-	
-	const polyglotStacks = 
-		(data.level && Traits.hasUnlocked(TraitName.EnhancedPolyglotII, data.level) && 3) ||
-		(data.level && Traits.hasUnlocked(TraitName.EnhancedPolyglot, data.level) && 2) ||
-		1;
-	let poly = <ResourceCounter
-		name={
-			localize({
-				en: "poly stacks",
-				zh: "通晓层数",
-				ja: "ポリグロット"
-			})}
-		color={colors.resources.polyStacks}
-		currentStacks={resources.polyglotStacks}
-		maxStacks={polyglotStacks}/>;
-
-	let portrait = <ResourceText
-		name={
-			localize({
-				en: "portrait",
-				zh: "肖像标识",
-			})
-		}
-		text={resources.portrait === 0 ? "/" : (
-			resources.portrait === 1 ? localize({
-				en: "moogle",
-				zh: "莫古力",
-			}) : localize({
-				en: "madeen",
-				zh: "马蒂恩",
-			})
-		)}
-	/>;
-
-	let depictions = <ResourceText
-		name={
-			localize({
-				en: "depictions",
-				zh: "动物标识",
-			})
-		}
-		text={
-			resources.depictions === 0 ? "/" :
-				(resources.depictions === 1 ? localize({
-					en: "pom",
-					zh: "绒球",
-				}) :
-					(resources.depictions === 2 ? localize({
-						en: "wing",
-						zh: "翅膀",
-					}) :
-						(resources.depictions === 3 ? localize({
-							en: "fang",
-							zh: "兽爪",
-						}) : localize({
-							en: "maw",
-							zh: "尖牙",
-						}))))
-		}
-	/>;
-
-	let creatureCanvas = <ResourceCounter
-		name={
-			localize({
-				en: "creature",
-				zh: "动物",
-			})
-		}
-		color={colors.resources.creatureCanvas}
-		currentStacks={resources.creatureCanvas}
-		maxStacks={1}
-	/>;
-
-	let weaponCanvas = <ResourceCounter
-		name={
-			localize({
-				en: "weapon",
-				zh: "武器",
-			})
-		}
-		color={colors.resources.weaponCanvas}
-		currentStacks={resources.weaponCanvas}
-		maxStacks={1}
-	/>;
-
-	let landscapeCanvas = <ResourceCounter
-		name={
-			localize({
-				en: "landscape",
-				zh: "风景",
-			})
-		}
-		color={colors.resources.landscapeCanvas}
-		currentStacks={resources.landscapeCanvas}
-		maxStacks={1}
-	/>;
-
-	let paletteGauge = <ResourceBar
-		name={
-			localize({
-				en: "palette gauge",
-				zh: "调色量谱",
-			})
-		}
-		color={colors.resources.paletteGauge}
-		progress={resources.paletteGauge / 100}
-		value={resources.paletteGauge.toFixed(0)}
-		width={100}
-		hidden={false}
-	/>;
-
-	// name, holyColor, cometColor, currentStacks, maxStacks, hasComet
-	let paint = (Traits.hasUnlocked(TraitName.EnhancedArtistry, data.level)) ? <PaintGaugeCounter
-		name={
-			localize({
-				en: "paint gauge",
-				zh: "颜料量谱",
-			})
-		}
-		holyColor={colors.resources.holyPaint}
-		cometColor={colors.resources.cometPaint}
-		currentStacks={resources.paint}
-		maxStacks={5}
-		hasComet={Traits.hasUnlocked(TraitName.EnhancedPalette, data.level) && resources.hasComet}
-	/> : <React.Fragment></React.Fragment>;
-
+	const elements = props.data.resources.map((props, i) =>
+		(props.kind === "bar")
+			? <ResourceBar
+				name={props.name}
+				color={props.color}
+				progress={props.progress}
+				value={props.valueString}
+				width={props.widthPx ?? 100}
+				hidden={props.hidden ?? false}
+				key={"resourceDisplay" + i}
+			/>
+		: (props.kind === "counter"
+			? <ResourceCounter
+				name={props.name}
+				color={props.color}
+				currentStacks={props.currentStacks}
+				maxStacks={props.maxStacks}
+				key={"resourceDisplay" + i}
+			/>
+		: (props.kind === "paint"
+			? <PaintGaugeCounter
+				name={props.name}
+				holyColor={props.holyColor}
+				cometColor={props.cometColor}
+				currentStacks={props.currentStacks}
+				maxStacks={props.maxStacks}
+				hasComet={props.hasComet}
+				key={"resourceDisplay" + i}
+			/>
+			: <ResourceText
+				name={props.name}
+				text={props.text}
+				key={"resourceDisplay" + i}
+			/>
+		))
+	);
 	return <div style={{textAlign: "left"}}>
-		{manaBar}
-		{manaTick}
-		{ShellInfo.job === ShellJob.BLM &&
-		<>
-		{afui}
-		{uh}
-		{paradox}
-		{soul}
-		{enochian}
-		{polyTimer}
-		{poly}
-		</>
-		}
-		{ShellInfo.job === ShellJob.PCT &&
-		<>
-		{portrait}
-		{depictions}
-		{creatureCanvas}
-		{weaponCanvas}
-		{landscapeCanvas}
-		{paletteGauge}
-		{paint}
-		</>
-		}
-	</div>;
+		{elements}
+	</div>
 }
 
 export var updateStatusDisplay = (data: StatusViewProps)=>{};
@@ -758,15 +352,8 @@ export class StatusDisplay extends React.Component {
 			time: 0,
 			level: 100,
 		}
-		updateStatusDisplay = ((newData)=>{
-			this.setState({
-				time: newData.time,
-				resources: newData.resources,
-				resourceLocks: newData.resourceLocks,
-				selfBuffs: newData.selfBuffs,
-				enemyBuffs: newData.enemyBuffs,
-				level: newData.level,
-			});
+		updateStatusDisplay = ((newData) => {
+			this.setState({...newData});
 		});
 	}
 	componentDidMount() {
@@ -812,4 +399,16 @@ export class StatusDisplay extends React.Component {
 			</div>
 		</div>
 	}
+}
+
+export abstract class StatusPropsGenerator<T extends PlayerState> {
+	state: T;
+
+	constructor(state: T) {
+		this.state = state;
+	}
+
+	abstract getEnemyBuffViewProps(): BuffProps[];
+	abstract getSelfBuffViewProps(): BuffProps[];
+	abstract getResourceViewProps(): ResourceDisplayProps[];
 }
